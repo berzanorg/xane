@@ -1,2 +1,2 @@
-# xane
+# Xane
 A MINA Project
