@@ -1,5 +1,14 @@
 {
     "build": {
         "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "bradlc.vscode-tailwindcss",
+                "heybourn.headwind",
+                "dbaeumer.vscode-eslint"
+            ]
+        }
     }
 }
