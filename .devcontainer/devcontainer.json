@@ -7,7 +7,8 @@
             "extensions": [
                 "bradlc.vscode-tailwindcss",
                 "heybourn.headwind",
-                "dbaeumer.vscode-eslint"
+                "dbaeumer.vscode-eslint",
+                "svelte.svelte-vscode"
             ]
         }
     }
