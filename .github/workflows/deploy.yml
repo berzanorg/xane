@@ -24,20 +24,20 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefix ui/
 
       - name: build
         env:
-          BASE_PATH: '/your-repo-name'
+          BASE_PATH: '/xane'
         run: |
-          npm run build
-          touch build/.nojekyll
+          npm run build --prefix ui/
+          touch ui/build/.nojekyll
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v1
         with:
           # this should match the `pages` option in your adapter-static options
-          path: 'build/'
+          path: 'ui/build/'
 
   deploy:
     needs: build_site
