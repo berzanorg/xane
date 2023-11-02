@@ -1,4 +1,13 @@
 {
   "version": 1,
-  "deployAliases": {}
+  "deployAliases": {
+    "testworld2": {
+      "url": "https://mina-testworld2-graphql.aurowallet.com/graphql",
+      "keyPath": "keys/testworld2.json",
+      "feepayerKeyPath": "/root/.cache/zkapp-cli/keys/deployer-1.json",
+      "feepayerAlias": "deployer-1",
+      "fee": "0.1",
+      "smartContract": "TokenX"
+    }
+  }
 }
