@@ -1,8 +1,5 @@
 <script lang="ts">
 	import { wallet } from '$lib/stores/wallet';
-	import { onMount } from 'svelte';
-
-	onMount(wallet.connectIfAuthorized);
 </script>
 
 <button
