@@ -2,7 +2,15 @@
 export default {
     content: ['./src/**/*.{html,js,svelte,ts}'],
     theme: {
-        extend: {},
+        extend: {
+            fontFamily: {
+                'serif': "'Manrope',sans-serif",
+                'mono': "'Jetbrains_Mono',monospace",
+            }
+        },
+    },
+    future: {
+        hoverOnlyWhenSupported: true,
     },
     plugins: [],
 }
