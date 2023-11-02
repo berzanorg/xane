@@ -12,7 +12,9 @@ declare interface Window {
         getAccounts(): Promise<Array<string>>
         /** Returns the name of the selected network. */
         requestNetwork(): Promise<'Mainnet' | 'Devnet' | 'Berkeley' | 'Testworld2' | 'Unknown'>
-        /** Listens for specified event using given handler. Currently only `accountsChanged` & `chainChanged` are supported. */
+        /** Adds event listener for specified event using given handler. Currently only `accountsChanged` & `chainChanged` are supported. */
         on<T extends 'accountsChanged' | 'chainChanged'>(eventName: T, handler: (params: T extends 'accountsChanged' ? Array<string> : T extends 'chainChanged' ? string : never) => void): void
+        /** Removes all the listeners added using `window.mina.on` function. */
+        removeAllListeners(): void
     }
 }
