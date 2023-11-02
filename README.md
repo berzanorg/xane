@@ -2,6 +2,7 @@
 
 **Xane** (IPA: /ˈhane/) is an **Order Book Decentralized Exchange**.
 
+Development version of UI is live: [https://berzanxyz.github.io/xane](https://berzanxyz.github.io/xane)
 
 ## Prerequirements
 You need [TypeScript](https://www.typescriptlang.org/) knowledge for smart contract development. 
@@ -27,7 +28,7 @@ You also need [zkApps](https://docs.minaprotocol.com/zkapps) knowledge to have a
 The easiest way to setup a development environment is to use [Dev Containers](https://containers.dev/). <br>
 You just need [Docker](https://www.docker.com/) and [VS Code](https://code.visualstudio.com/) installed to use [Dev Containers](https://containers.dev/). <br>
 When you open the project in [VS Code](https://code.visualstudio.com/), it will warn you to repeon it in a container. <br>
-It also contains three [VS Code](https://code.visualstudio.com/) extensions that will help you during the development.
+It also contains four different [VS Code](https://code.visualstudio.com/) extensions that will help you during the development.
 
 If you prefer a more traditional way to setup a development environment, you only need to install the latest version of [NodeJS](https://nodejs.org/).
 
