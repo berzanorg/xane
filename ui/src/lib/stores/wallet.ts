@@ -44,14 +44,12 @@ const createStore = () => {
                 address: mainAddress,
                 network,
             })
-            addEventListeners()
+            _addEventListeners()
         } catch (err) {
             if (err?.code === 4001) return
-            else {
-                alert('Open browser console.')
-                console.error('An error occured.')
-                console.error(err)
-            }
+            alert('Open browser console.')
+            console.error('An error occured.')
+            console.error(err)
         }
     }
 
@@ -69,20 +67,18 @@ const createStore = () => {
                     address: mainAddress,
                     network,
                 })
-                addEventListeners()
+                _addEventListeners()
             } catch (err) {
                 if (err?.code === 4001) return
-                else {
-                    alert('Open browser console.')
-                    console.error('An error occured.')
-                    console.error(err)
-                }
+                alert('Open browser console.')
+                console.error('An error occured.')
+                console.error(err)
             }
         })
     }
 
     /** Adds event listeners to track changes of Auro Wallet. */
-    const addEventListeners = () => {
+    const _addEventListeners = () => {
         if (!window.mina) return // returns if Auro Wallet is not found
 
         window.mina.on('accountsChanged', (accounts) => {
@@ -109,10 +105,26 @@ const createStore = () => {
 
     }
 
+    /** Signs the given message. And logs the signedMessage to console. */
+    const signMessage = async (message: string) => {
+        if (!window.mina) return // returns if Auro Wallet is not found
+        try {
+            const signedMessage = await window.mina.signMessage({ message })
+            console.log('Signed message is below.')
+            console.log(signedMessage)
+            alert('Open browser console to see the signed message.')
+        } catch (err) {
+            if (err?.code === 4001) return
+            alert('Open browser console.')
+            console.error('An error occured.')
+            console.error(err)
+        }
+    }
 
     return {
         subscribe,
         connect,
+        signMessage,
         connectIfAuthorized
     }
 }
