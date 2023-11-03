@@ -54,27 +54,25 @@ const createStore = () => {
     }
 
     /** Connects Auro Wallet if the website is already authorized. */
-    const connectIfAuthorized = () => {
-        window.addEventListener('load', async () => {
-            if (!window.mina) return // returns if Auro Wallet is not found
-            try {
-                const accounts = await window.mina.getAccounts()
-                const mainAddress = accounts[0]
-                if (!mainAddress) return
-                const network = await window.mina.requestNetwork()
-                set({
-                    isConnected: true,
-                    address: mainAddress,
-                    network,
-                })
-                _addEventListeners()
-            } catch (err) {
-                if (err?.code === 4001) return
-                alert('Open browser console.')
-                console.error('An error occured.')
-                console.error(err)
-            }
-        })
+    const connectIfAuthorized = async () => {
+        if (!window.mina) return // returns if Auro Wallet is not found
+        try {
+            const accounts = await window.mina.getAccounts()
+            const mainAddress = accounts[0]
+            if (!mainAddress) return
+            const network = await window.mina.requestNetwork()
+            set({
+                isConnected: true,
+                address: mainAddress,
+                network,
+            })
+            _addEventListeners()
+        } catch (err) {
+            if (err?.code === 4001) return
+            alert('Open browser console.')
+            console.error('An error occured.')
+            console.error(err)
+        }
     }
 
     /** Adds event listeners to track changes of Auro Wallet. */
