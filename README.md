@@ -2,7 +2,7 @@
 
 **Xane** (IPA: /ˈhane/) is an **Order Book Decentralized Exchange**.
 
-Development version of UI is live: [https://berzanxyz.github.io/xane](https://berzanxyz.github.io/xane)
+Development version of UI is live: [xane.pages.dev](https://xane.pages.dev)
 
 ## Prerequirements
 You need [TypeScript](https://www.typescriptlang.org/) knowledge for smart contract development. 
