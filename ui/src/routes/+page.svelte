@@ -3,7 +3,7 @@
 	import Section from '$lib/components/Section.svelte';
 	import { wallet } from '$lib/stores/wallet';
 	import { PublicKey } from 'o1js';
-	import { TokenX } from '../../../contracts/build/src/TokenX';
+	import { TokenX } from 'xane-contracts';
 
 	let zkApp: TokenX;
 
