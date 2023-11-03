@@ -27,12 +27,13 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Install dependencies
-        run: npm install --prefix ui/
+        run: npm install --prefix ui/ & npm install --prefix contracts/ 
 
       - name: build
         env:
           BASE_PATH: '/xane'
         run: |
+          npm run build --prefix contracts/
           npm run build --prefix ui/
           touch ui/build/.nojekyll
 
