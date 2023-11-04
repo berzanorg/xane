@@ -3,14 +3,14 @@
 	import Section from '$lib/components/Section.svelte';
 	import { wallet } from '$lib/stores/wallet';
 	import { PublicKey } from 'o1js';
-	import type { TokenX } from 'xane-contracts';
+	import type { Token } from 'xane-contracts';
 
-	let zkApp: TokenX;
+	let token: Token;
 
 	onMount(async () => {
-		const { TokenX } = await import('xane-contracts');
+		const { Token } = await import('xane-contracts');
 		const zkAppAddress = 'B62qoSKd89ksWtxN1b2zo1TZSLegB3Xaj6PAEGh2xg9fLgoZdhAeN1T';
-		zkApp = new TokenX(PublicKey.fromBase58(zkAppAddress));
+		token = new Token(PublicKey.fromBase58(zkAppAddress));
 	});
 
 	async function mintTokens() {

@@ -72,7 +72,7 @@ export class Token extends SmartContract {
         // Requires that admin signed the inputs.
         adminSignature.verify(
             this.address,
-            amount.toFields().concat(receiverAddress.toFields())
+            receiverAddress.toFields().concat(amount.toFields())
         ).assertTrue()
 
         const supplyMaximum = this.supplyMaximum.getAndAssertEquals()
