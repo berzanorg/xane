@@ -37,7 +37,23 @@ declare interface Window {
         /** Verifies the given signed message. Returns `true`/`false` based on the verification. */
         verifyMessage(params: {
             publicKey: string
-            data: string
+            payload: string
+            signature: {
+                field: string
+                scalar: string
+            }
+        }): Promise<boolean>
+
+        /** Makes a request to sign the given fields. Fields must be converted to string before signing. */
+        signFields(params: { message: Array<string> }): Promise<{
+            data: Array<string>
+            signature: string
+        }>
+
+        /** Verifies the given signed fields. Returns `true`/`false` based on the verification. */
+        verifyFields(params: {
+            publicKey: string
+            payload: Array<string>
             signature: {
                 field: string
                 scalar: string

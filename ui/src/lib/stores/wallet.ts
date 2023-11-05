@@ -1,3 +1,4 @@
+import type { Field } from "o1js"
 import { writable } from "svelte/store"
 
 /**
@@ -103,7 +104,7 @@ const createStore = () => {
 
     }
 
-    /** Signs the given message. And logs the signedMessage to console. */
+    /** Signs the given message. And logs the signed message to console. */
     const signMessage = async (message: string) => {
         if (!window.mina) return // returns if Auro Wallet is not found
         try {
@@ -119,10 +120,28 @@ const createStore = () => {
         }
     }
 
+    /** Signs the given fields. And logs the signed fields to console. */
+    const signFields = async (fields: Array<Field>) => {
+        if (!window.mina) return // returns if Auro Wallet is not found
+        try {
+            const message = fields.map(field => field.toString())
+            const signedFields = await window.mina.signFields({ message })
+            console.log('Signed fields are below.')
+            console.log(signedFields)
+            alert('Open browser console to see the signed fields.')
+        } catch (err) {
+            if (err?.code === 4001) return
+            alert('Open browser console.')
+            console.error('An error occured.')
+            console.error(err)
+        }
+    }
+
     return {
         subscribe,
         connect,
         signMessage,
+        signFields,
         connectIfAuthorized
     }
 }
