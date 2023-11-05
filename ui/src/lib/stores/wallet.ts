@@ -1,4 +1,4 @@
-import type { Field } from "o1js"
+import { Signature, type Field } from "o1js"
 import { writable } from "svelte/store"
 
 /**
@@ -120,20 +120,22 @@ const createStore = () => {
         }
     }
 
-    /** Signs the given fields. And logs the signed fields to console. */
-    const signFields = async (fields: Array<Field>) => {
-        if (!window.mina) return alert('Auro Wallet is not found.') // return if Auro Wallet is not found
+    /** Signs the given fields. Returns the signature. If an error occurs, returns `null`. */
+    const signFields = async (fields: Array<Field>): Promise<null | Signature> => {
+        if (!window.mina) {
+            alert('Auro Wallet is not found.') // return if Auro Wallet is not found
+            return null
+        }
         try {
             const message = fields.map(field => field.toString())
             const signedFields = await window.mina.signFields({ message })
-            console.log('Signed fields are below.')
-            console.log(signedFields)
-            alert('Open browser console to see the signed fields.')
+            return Signature.fromBase58(signedFields.signature)
         } catch (err) {
-            if (err?.code === 4001) return
+            if (err?.code === 4001) return null
             alert('Open browser console.')
             console.error('An error occured while fields signing.')
             console.error(err)
+            return null
         }
     }
 
