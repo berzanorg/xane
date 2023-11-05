@@ -29,7 +29,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "checkJs": true,
-    "useUnknownInCatchVariables": false
+    "useUnknownInCatchVariables": false,
+    "resolveJsonModule": true
   },
   // Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
   //
