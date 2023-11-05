@@ -15,9 +15,9 @@ declare interface Window {
         /** Returns the name of the selected network. */
         requestNetwork(): Promise<'Mainnet' | 'Devnet' | 'Berkeley' | 'Testworld2' | 'Unknown'>
 
-        /** Makes a request to send a transaction. Returns its hash. */
+        /** Makes a request to send a transaction. Returns its hash. Parameter `transaction` is JSON representation of the transaction. */
         sendTransaction(params: {
-            transaction: any,
+            transaction: string,
             feePayer?: {
                 fee?: number,
                 memo?: string

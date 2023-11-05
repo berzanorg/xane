@@ -49,7 +49,7 @@ const createStore = () => {
         } catch (err) {
             if (err?.code === 4001) return
             alert('Open browser console.')
-            console.error('An error occured.')
+            console.error('An error occured while connecting.')
             console.error(err)
         }
     }
@@ -71,7 +71,7 @@ const createStore = () => {
         } catch (err) {
             if (err?.code === 4001) return
             alert('Open browser console.')
-            console.error('An error occured.')
+            console.error('An error occured while auto-connecting.')
             console.error(err)
         }
     }
@@ -106,7 +106,7 @@ const createStore = () => {
 
     /** Signs the given message. And logs the signed message to console. */
     const signMessage = async (message: string) => {
-        if (!window.mina) return // returns if Auro Wallet is not found
+        if (!window.mina) return alert('Auro Wallet is not found.') // return if Auro Wallet is not found
         try {
             const signedMessage = await window.mina.signMessage({ message })
             console.log('Signed message is below.')
@@ -115,14 +115,14 @@ const createStore = () => {
         } catch (err) {
             if (err?.code === 4001) return
             alert('Open browser console.')
-            console.error('An error occured.')
+            console.error('An error occured while message signing.')
             console.error(err)
         }
     }
 
     /** Signs the given fields. And logs the signed fields to console. */
     const signFields = async (fields: Array<Field>) => {
-        if (!window.mina) return // returns if Auro Wallet is not found
+        if (!window.mina) return alert('Auro Wallet is not found.') // return if Auro Wallet is not found
         try {
             const message = fields.map(field => field.toString())
             const signedFields = await window.mina.signFields({ message })
@@ -132,7 +132,28 @@ const createStore = () => {
         } catch (err) {
             if (err?.code === 4001) return
             alert('Open browser console.')
-            console.error('An error occured.')
+            console.error('An error occured while fields signing.')
+            console.error(err)
+        }
+    }
+
+    /** Makes a request to send a transaction. */
+    const sendTransaction = async (transactionAsJSON: string) => {
+        if (!window.mina) return alert('Auro Wallet is not found.') // return if Auro Wallet is not found
+        try {
+            const transaction = transactionAsJSON
+            const feePayer = {
+                fee: 0.1,
+                memo: 'zk',
+            }
+            const { hash } = await window.mina.sendTransaction({ transaction, feePayer })
+            console.log('Transaction hash is below.')
+            console.log(hash)
+            alert('Open browser console to see the transaction hash.')
+        } catch (err) {
+            if (err?.code === 4001) return
+            alert('Open browser console.')
+            console.error('An error occured while transaction sending.')
             console.error(err)
         }
     }
@@ -142,7 +163,8 @@ const createStore = () => {
         connect,
         signMessage,
         signFields,
-        connectIfAuthorized
+        sendTransaction,
+        connectIfAuthorized,
     }
 }
 
