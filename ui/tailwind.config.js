@@ -6,6 +6,12 @@ export default {
             fontFamily: {
                 'serif': "'Manrope',sans-serif",
                 'mono': "'Jetbrains_Mono',monospace",
+            },
+            borderRadius: {
+                'xlg': '0.625rem'
+            },
+            scale: {
+                '85': '.85'
             }
         },
     },
