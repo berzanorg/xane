@@ -8,6 +8,14 @@
       "feepayerAlias": "deployer-1",
       "fee": "0.1",
       "smartContract": "TokenX"
+    },
+    "berkeley": {
+      "url": "https://proxy.berkeley.minaexplorer.com",
+      "keyPath": "keys/berkeley.json",
+      "feepayerKeyPath": "/root/.cache/zkapp-cli/keys/auro.json",
+      "feepayerAlias": "auro",
+      "fee": "0.1",
+      "smartContract": "Token"
     }
   }
 }
