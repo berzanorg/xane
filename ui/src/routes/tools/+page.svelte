@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { wallet } from '$lib/stores/wallet'
 	import { deployTokenContract } from '$lib/utils/contracts'
-	import { Token } from 'xane-contracts'
 
 	let status: 'not-started' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'not-started'
 
@@ -19,6 +18,7 @@
 		inputsDisabled = true
 
 		status = 'compiling'
+		const { Token } = await import('xane-contracts')
 		await Token.compile()
 		status = 'compiled'
 

@@ -1,5 +1,4 @@
 import { AccountUpdate, Mina, PrivateKey, PublicKey, UInt64, } from "o1js"
-import { Token, utils } from "xane-contracts"
 import { wallet } from "$lib/stores/wallet"
 import verificationKey from './verificationKey.json'
 
@@ -19,6 +18,7 @@ export const deployTokenContract = async (args: DeployTokenArgs) => {
     const signer = PublicKey.fromBase58(args.signer)
     const contractPrivateKey = PrivateKey.random()
     const contractPublicKey = contractPrivateKey.toPublicKey()
+    const { Token, utils } = await import('xane-contracts')
     const contract = new Token(contractPublicKey)
 
     const name = utils.stringToField(args.name)
