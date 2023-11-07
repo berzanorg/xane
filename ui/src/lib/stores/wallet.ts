@@ -1,4 +1,4 @@
-import { Signature, type Field } from "o1js"
+import type { Field, Signature } from "o1js"
 import { writable } from "svelte/store"
 
 /**
@@ -129,6 +129,7 @@ const createStore = () => {
         try {
             const message = fields.map(field => field.toString())
             const signedFields = await window.mina.signFields({ message })
+            const { Signature } = await import('o1js')
             return Signature.fromBase58(signedFields.signature)
         } catch (err) {
             if (err?.code === 4001) return null
