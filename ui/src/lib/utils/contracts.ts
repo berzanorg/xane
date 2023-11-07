@@ -15,10 +15,12 @@ interface DeployTokenArgs {
 export const deployTokenContract = async (args: DeployTokenArgs) => {
     Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
 
+    const { Token, utils } = await import('xane-contracts')
+    Token.compile()
+
     const signer = PublicKey.fromBase58(args.signer)
     const contractPrivateKey = PrivateKey.random()
     const contractPublicKey = contractPrivateKey.toPublicKey()
-    const { Token, utils } = await import('xane-contracts')
     const contract = new Token(contractPublicKey)
 
     const name = utils.stringToField(args.name)
