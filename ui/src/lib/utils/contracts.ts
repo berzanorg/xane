@@ -14,6 +14,8 @@ interface DeployTokenArgs {
 
 
 export const deployTokenContract = async (args: DeployTokenArgs) => {
+    Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
+
     const signer = PublicKey.fromBase58(args.signer)
     const contractPrivateKey = PrivateKey.random()
     const contractPublicKey = contractPrivateKey.toPublicKey()
