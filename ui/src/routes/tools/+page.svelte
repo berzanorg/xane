@@ -32,17 +32,24 @@
 
 		status = 'deploying'
 
-		const hash = await deployTokenContract({
-			signer: $wallet.address,
-			name: bindedTokenName,
-			ticker: bindedTokenTicker,
-			supply: parseInt(bindedTokenSupply)
-		})
+		try {
+			const hash = await deployTokenContract({
+				signer: $wallet.address,
+				name: bindedTokenName,
+				ticker: bindedTokenTicker,
+				supply: parseInt(bindedTokenSupply)
+			})
 
-		if (hash) {
-			status = 'deployed'
-			txHash = hash
-		} else {
+			if (hash) {
+				status = 'deployed'
+				txHash = hash
+			} else {
+				status = 'compiled'
+				buttonDisabled = false
+			}
+		} catch (error) {
+			alert('An unexpected error is occured.')
+			console.error(error)
 			status = 'compiled'
 			buttonDisabled = false
 		}
