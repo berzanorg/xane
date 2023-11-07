@@ -25,6 +25,7 @@ export const deployTokenContract = async (args: DeployTokenArgs) => {
 
     let tx = await Mina.transaction(signer, () => {
         AccountUpdate.fundNewAccount(signer)
+        AccountUpdate.fundNewAccount(signer)
         contract.deploy({
             verificationKey,
             zkappKey: contractPrivateKey,
