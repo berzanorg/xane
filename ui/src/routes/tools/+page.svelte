@@ -2,7 +2,7 @@
 	import { wallet } from '$lib/stores/wallet'
 	import { deployTokenContract } from '$lib/utils/contracts'
 
-	let status: 'not-started' | 'deploying' | 'deployed' = 'not-started'
+	let status: 'not-started' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'not-started'
 
 	let buttonDisabled: boolean = false
 	let inputsDisabled: boolean = false
@@ -12,6 +12,18 @@
 	let bindedTokenSupply: string = ''
 
 	let txHash: string = ''
+
+	const compileContract = async () => {
+		buttonDisabled = true
+		inputsDisabled = true
+
+		status = 'compiling'
+		const { Token } = await import('xane-contracts')
+		await Token.compile()
+		status = 'compiled'
+
+		buttonDisabled = false
+	}
 
 	const deployContract = async () => {
 		if (!$wallet.isConnected) return
@@ -32,13 +44,13 @@
 				status = 'deployed'
 				txHash = hash
 			} else {
-				status = 'not-started'
+				status = 'compiled'
 				buttonDisabled = false
 			}
 		} catch (error) {
 			alert('An unexpected error is occured.')
 			console.error(error)
-			status = 'not-started'
+			status = 'compiled'
 			buttonDisabled = false
 		}
 	}
@@ -48,7 +60,11 @@
 	<form
 		class="flex flex-col gap-5"
 		action=""
-		on:submit={status === 'not-started' ? deployContract : () => {}}
+		on:submit={status === 'not-started'
+			? compileContract
+			: status === 'compiled'
+			? deployContract
+			: () => {}}
 	>
 		<h1 class="text-3xl font-bold">Create Your Own Token</h1>
 		<div class="flex items-center gap-2.5">
@@ -92,6 +108,10 @@
 				type="submit"
 			>
 				{#if status === 'not-started'}
+					Compile Contract
+				{:else if status === 'compiling'}
+					Compiling...
+				{:else if status === 'compiled'}
 					Deploy Contract
 				{:else if status === 'deploying'}
 					Deploying...
@@ -106,6 +126,10 @@
 			<p class="text-lg font-semibold text-neutral-600">
 				{#if $wallet.isConnected}
 					{#if status === 'not-started'}
+						Contract is ready to be compiled.
+					{:else if status === 'compiling'}
+						Compiling token contract...
+					{:else if status === 'compiled'}
 						Token is ready to be deployed.
 					{:else if status === 'deploying'}
 						Deploying token contract...
