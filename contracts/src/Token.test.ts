@@ -17,12 +17,6 @@ describe('Token Contract', () => {
 
   let verificationKey: { data: string, hash: Field }
 
-  let user1PrivateKey: PrivateKey
-  let user1PublicKey: PublicKey
-
-  let user2PrivateKey: PrivateKey
-  let user2PublicKey: PublicKey
-
   beforeAll(async () => {
     const Local = Mina.LocalBlockchain({ proofsEnabled })
     Mina.setActiveInstance(Local)
@@ -30,86 +24,42 @@ describe('Token Contract', () => {
     deployerPrivateKey = Local.testAccounts[0].privateKey
     deployerPublicKey = Local.testAccounts[0].publicKey
 
-    user1PrivateKey = Local.testAccounts[1].privateKey
-    user1PublicKey = Local.testAccounts[1].publicKey
-
-    user2PrivateKey = Local.testAccounts[2].privateKey
-    user2PublicKey = Local.testAccounts[2].publicKey
-
     zkAppPrivateKey = PrivateKey.random()
     zkAppPublicKey = zkAppPrivateKey.toPublicKey()
     zkAppInstance = new Token(zkAppPublicKey)
 
     verificationKey = (await Token.compile()).verificationKey
-
-    const tx = await Mina.transaction(deployerPublicKey, () => {
-      AccountUpdate.fundNewAccount(deployerPublicKey)
-      zkAppInstance.deploy({ verificationKey, zkappKey: zkAppPrivateKey })
-    })
-
-    await tx.prove()
-    await tx.sign([deployerPrivateKey]).send()
   })
 
-  it('can initialize token metadata', async () => {
+  it('can create a new token', async () => {
     const ticker = stringToField('MY')
     const name = stringToField('My Token')
-    const decimals = UInt32.from(8)
-    const supplyMaximum = UInt64.from(100_000_000 * Math.pow(10, 8))
-
-    const adminSignature = Signature.create(
-      zkAppPrivateKey,
-      ticker.toFields().concat(name.toFields()).concat(decimals.toFields()).concat(supplyMaximum.toFields())
-    )
-
-    const tx = await Mina.transaction(deployerPublicKey, () => {
-      zkAppInstance.initMetadata(ticker, name, decimals, supplyMaximum, adminSignature)
-    })
-
-    await tx.prove()
-    await tx.sign([deployerPrivateKey]).send()
-
-    expect(zkAppInstance.ticker.get()).toEqual(ticker)
-    expect(zkAppInstance.name.get()).toEqual(name)
-    expect(zkAppInstance.decimals.get()).toEqual(decimals)
-    expect(zkAppInstance.supplyMaximum.get()).toEqual(supplyMaximum)
-    expect(zkAppInstance.supplyCirculating.get()).toEqual(UInt64.from(0))
-  })
-
-  it('can mint tokens', async () => {
-    const receiverAddress = user1PublicKey
-    const amount = UInt64.from(1_000_000 * Math.pow(10, 8))
-
-    const adminSignature = Signature.create(
-      zkAppPrivateKey,
-      receiverAddress.toFields().concat(amount.toFields())
-    )
+    const supply = UInt64.from(100_000_000)
 
     const tx = await Mina.transaction(deployerPublicKey, () => {
       AccountUpdate.fundNewAccount(deployerPublicKey)
-      zkAppInstance.mintTokens(receiverAddress, amount, adminSignature)
+      AccountUpdate.fundNewAccount(deployerPublicKey)
+      zkAppInstance.deploy({ verificationKey, zkappKey: zkAppPrivateKey, ticker, name, supply })
+    })
+
+    await tx.prove()
+    await tx.sign([deployerPrivateKey, zkAppPrivateKey]).send()
+  })
+
+
+  it('can send and receive tokens', async () => {
+    const receiverAddress = PrivateKey.random().toPublicKey()
+    const amount = UInt64.from(20_000_000)
+
+    const tx = await Mina.transaction(deployerPublicKey, () => {
+      AccountUpdate.fundNewAccount(deployerPublicKey)
+      zkAppInstance.sendTokens(deployerPublicKey, receiverAddress, amount)
     })
 
     await tx.prove()
     await tx.sign([deployerPrivateKey]).send()
 
-    expect(Mina.getBalance(receiverAddress, zkAppInstance.token.id)).toEqual(amount)
-  })
-
-  it('can send and receive tokens', async () => {
-    const senderAddress = user1PublicKey
-    const receiverAddress = user2PublicKey
-    const amount = UInt64.from(200_000 * Math.pow(10, 8))
-
-    const tx = await Mina.transaction(user1PublicKey, () => {
-      AccountUpdate.fundNewAccount(user1PublicKey)
-      zkAppInstance.sendTokens(senderAddress, receiverAddress, amount)
-    })
-
-    await tx.prove()
-    await tx.sign([user1PrivateKey]).send()
-
-    expect(Mina.getBalance(senderAddress, zkAppInstance.token.id)).toEqual(UInt64.from(800_000 * Math.pow(10, 8)))
+    expect(Mina.getBalance(deployerPublicKey, zkAppInstance.token.id)).toEqual(UInt64.from(80_000_000))
     expect(Mina.getBalance(receiverAddress, zkAppInstance.token.id)).toEqual(amount)
   })
 })
