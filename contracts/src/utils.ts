@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Field } from "o1js";
 
-
 /**
  * Converts a `string` to a `Field`.
  * 
