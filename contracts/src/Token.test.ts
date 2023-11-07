@@ -1,5 +1,8 @@
 import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Signature, UInt32, UInt64 } from 'o1js'
 import { Token } from './Token'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { fieldToString, stringToField } from './utils'
 
 
 const proofsEnabled = false
@@ -49,8 +52,8 @@ describe('Token Contract', () => {
   })
 
   it('can initialize token metadata', async () => {
-    const ticker = Field.from(777) //todo: create a field that represents a string
-    const name = Field.from(777) //todo: create a field that represents a string
+    const ticker = stringToField('MY')
+    const name = stringToField('My Token')
     const decimals = UInt32.from(8)
     const supplyMaximum = UInt64.from(100_000_000 * Math.pow(10, 8))
 
