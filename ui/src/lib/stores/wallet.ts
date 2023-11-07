@@ -151,12 +151,12 @@ const createStore = () => {
             const { hash } = await window.mina.sendTransaction({ transaction, feePayer })
             console.log('Transaction hash is below.')
             console.log(hash)
-            alert('Open browser console to see the transaction hash.')
+            return hash
         } catch (err) {
             if (err?.code === 4001) return
-            alert('Open browser console.')
             console.error('An error occured while transaction sending.')
             console.error(err)
+            alert('Open browser console.')
         }
     }
 
