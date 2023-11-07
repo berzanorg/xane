@@ -1,6 +1,7 @@
 import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Signature, UInt32, UInt64 } from 'o1js'
 import { Exchange } from './Exchange'
 import { Token } from './Token'
+import { stringToField } from './utils'
 
 
 
@@ -70,15 +71,24 @@ describe('Exchange Contract', () => {
     tokenOneZkAppInstance = new Token(tokenOneZkAppPublicKey)
     tokenOneZkAppverificationKey = (await Token.compile()).verificationKey
 
-    const txToDeployTokenOne = await Mina.transaction(deployerPublicKey, () => {
-      AccountUpdate.fundNewAccount(deployerPublicKey)
+    const txnTokenOne = await Mina.transaction(user1PublicKey, () => {
+      AccountUpdate.fundNewAccount(user1PublicKey)
+      AccountUpdate.fundNewAccount(user1PublicKey)
+
+      const name = stringToField('ONE')
+      const ticker = stringToField('Token One')
+      const supply = UInt64.from(21_000_000)
+
       tokenOneZkAppInstance.deploy({
         verificationKey: tokenOneZkAppverificationKey,
-        zkappKey: tokenOneZkAppPrivateKey
+        zkappKey: tokenOneZkAppPrivateKey,
+        name,
+        ticker,
+        supply,
       })
     })
-    await txToDeployTokenOne.prove()
-    await txToDeployTokenOne.sign([deployerPrivateKey]).send()
+    await txnTokenOne.prove()
+    await txnTokenOne.sign([user1PrivateKey]).send()
 
 
     // Deploy token two zkApp.
@@ -87,89 +97,30 @@ describe('Exchange Contract', () => {
     tokenTwoZkAppInstance = new Token(tokenTwoZkAppPublicKey)
     tokenTwoZkAppverificationKey = tokenOneZkAppverificationKey // They are different instances of the same smart contract. So their verification key is the same.
 
-    const txToDeployTokenTwo = await Mina.transaction(deployerPublicKey, () => {
-      AccountUpdate.fundNewAccount(deployerPublicKey)
+    const txnTokenTwo = await Mina.transaction(user2PublicKey, () => {
+      AccountUpdate.fundNewAccount(user2PublicKey)
+      AccountUpdate.fundNewAccount(user2PublicKey)
+
+      const name = stringToField('TWO')
+      const ticker = stringToField('Token Two')
+      const supply = UInt64.from(100_000_000)
+
       tokenTwoZkAppInstance.deploy({
         verificationKey: tokenTwoZkAppverificationKey,
-        zkappKey: tokenTwoZkAppPrivateKey
+        zkappKey: tokenTwoZkAppPrivateKey,
+        name,
+        ticker,
+        supply
       })
     })
-    await txToDeployTokenTwo.prove()
-    await txToDeployTokenTwo.sign([deployerPrivateKey]).send()
-
-
-    // Initialize the metadata of token one.
-    const txToInitializeTokenOneMetadata = await Mina.transaction(deployerPublicKey, () => {
-      const ticker = Field.from(777) //todo: create a field that represents a string
-      const name = Field.from(777) //todo: create a field that represents a string
-      const decimals = UInt32.from(8)
-      const supplyMaximum = UInt64.from(100_000_000 * Math.pow(10, 8))
-
-      const adminSignature = Signature.create(
-        tokenOneZkAppPrivateKey,
-        ticker.toFields().concat(name.toFields()).concat(decimals.toFields()).concat(supplyMaximum.toFields())
-      )
-
-      tokenOneZkAppInstance.initMetadata(ticker, name, decimals, supplyMaximum, adminSignature)
-    })
-    await txToInitializeTokenOneMetadata.prove()
-    await txToInitializeTokenOneMetadata.sign([deployerPrivateKey]).send()
-
-
-    // Initialize the metadata of token two.
-    const txToInitializeTokenTwoMetadata = await Mina.transaction(deployerPublicKey, () => {
-      const ticker = Field.from(888) //todo: create a field that represents a string
-      const name = Field.from(888) //todo: create a field that represents a string
-      const decimals = UInt32.from(6)
-      const supplyMaximum = UInt64.from(1_000_000_000 * Math.pow(10, 6))
-
-      const adminSignature = Signature.create(
-        tokenTwoZkAppPrivateKey,
-        ticker.toFields().concat(name.toFields()).concat(decimals.toFields()).concat(supplyMaximum.toFields())
-      )
-
-      tokenTwoZkAppInstance.initMetadata(ticker, name, decimals, supplyMaximum, adminSignature)
-    })
-    await txToInitializeTokenTwoMetadata.prove()
-    await txToInitializeTokenTwoMetadata.sign([deployerPrivateKey]).send()
-
-
-    // Mint 100 token one to user 1.
-    const txToMintTokenOne = await Mina.transaction(deployerPublicKey, () => {
-      AccountUpdate.fundNewAccount(deployerPublicKey)
-      const receiverAddress = user1PublicKey
-      const amount = UInt64.from(100 * Math.pow(10, 8))
-      const signature = Signature.create(
-        tokenOneZkAppPrivateKey,
-        receiverAddress.toFields().concat(amount.toFields())
-      )
-      tokenOneZkAppInstance.mintTokens(receiverAddress, amount, signature)
-    })
-    await txToMintTokenOne.prove()
-    await txToMintTokenOne.sign([deployerPrivateKey]).send()
-
-
-    // Mint 500 token two to user 2.
-    const txToMintTokenTwo = await Mina.transaction(deployerPublicKey, () => {
-      AccountUpdate.fundNewAccount(deployerPublicKey)
-      const receiverAddress = user2PublicKey
-      const amount = UInt64.from(500 * Math.pow(10, 6))
-      const signature = Signature.create(
-        tokenTwoZkAppPrivateKey,
-        receiverAddress.toFields().concat(amount.toFields())
-      )
-      tokenTwoZkAppInstance.mintTokens(receiverAddress, amount, signature)
-    })
-    await txToMintTokenTwo.prove()
-    await txToMintTokenTwo.sign([deployerPrivateKey]).send()
+    await txnTokenTwo.prove()
+    await txnTokenTwo.sign([user2PrivateKey]).send()
   })
-
-
 
   it('can place orders', async () => {
     const tx = await Mina.transaction(user1PublicKey, () => {
       AccountUpdate.fundNewAccount(user1PublicKey)
-      exchangeZkAppInstance.placeOrder(tokenOneZkAppPublicKey, tokenTwoZkAppPublicKey, UInt64.from(20 * Math.pow(10, 8)))
+      exchangeZkAppInstance.placeOrder(tokenOneZkAppPublicKey, tokenTwoZkAppPublicKey, UInt64.from(200_000))
     })
     await tx.prove()
     await tx.sign([user1PrivateKey]).send()
