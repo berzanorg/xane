@@ -35,7 +35,9 @@
   },
   "type": "module",
   "dependencies": {
-    "o1js": "0.*",
     "xane-contracts": "file:../contracts"
+  },
+  "peerDependencies": {
+    "o1js": "0.14.*"
   }
 }
