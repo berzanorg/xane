@@ -34,6 +34,7 @@
 				console.log('load contract message is sent to worker')
 			},
 			err() {
+				console.log('err is called')
 				alert('Worker Error')
 			}
 		})
