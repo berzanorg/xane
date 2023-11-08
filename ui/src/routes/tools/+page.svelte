@@ -122,6 +122,7 @@
 				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="My Token"
+				bind:value={bindedTokenName}
 			/>
 		</div>
 		<div class="flex items-center gap-2.5">
@@ -133,6 +134,7 @@
 				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="MYT"
+				bind:value={bindedTokenTicker}
 			/>
 		</div>
 
@@ -145,6 +147,7 @@
 				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="1000"
+				bind:value={bindedTokenSupply}
 			/>
 		</div>
 		<div class="flex items-center">
