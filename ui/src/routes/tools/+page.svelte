@@ -65,11 +65,10 @@
 		workerClient?.on('deployContract', {
 			async ok(txAsJson) {
 				console.log(txAsJson)
-				return
 				const hash = await wallet.sendTransaction(txAsJson)
 				if (typeof hash === 'string') {
 					status = 'deployed'
-					// txHash = hash
+					txHash = hash
 				} else {
 					status = 'compiled'
 					buttonDisabled = false
