@@ -59,17 +59,17 @@
 	}
 
 	const deployContract = async () => {
-		if (!$wallet.isConnected) return
-
 		buttonDisabled = true
 
 		status = 'deploying'
 		workerClient?.on('deployContract', {
 			async ok(txAsJson) {
+				console.log(txAsJson)
+				return
 				const hash = await wallet.sendTransaction(txAsJson)
 				if (typeof hash === 'string') {
 					status = 'deployed'
-					txHash = hash
+					// txHash = hash
 				} else {
 					status = 'compiled'
 					buttonDisabled = false
@@ -89,7 +89,7 @@
 					name: bindedTokenName,
 					ticker: bindedTokenTicker,
 					supply: parseInt(bindedTokenSupply),
-					signerPublicKey: $wallet.address
+					signerPublicKey: $wallet.address as any
 				}
 			})
 		} catch (error) {
@@ -117,7 +117,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
+				disabled={inputsDisabled || status === 'loading'}
 				required
 				placeholder="My Token"
 				bind:value={bindedTokenName}
@@ -129,7 +129,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg uppercase disabled:cursor-not-allowed"
 				maxlength={3}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
+				disabled={inputsDisabled || status === 'loading'}
 				required
 				placeholder="MYT"
 				bind:value={bindedTokenTicker}
@@ -142,7 +142,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="number"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
+				disabled={inputsDisabled || status === 'loading'}
 				required
 				placeholder="1000"
 				bind:value={bindedTokenSupply}
@@ -151,7 +151,7 @@
 		<div class="flex items-center">
 			<button
 				class="self-start h-10 px-5 font-bold text-black duration-150 bg-white rounded-xlg hover:scale-95 active:scale-85 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-				disabled={buttonDisabled || !$wallet.isConnected || status === 'loading'}
+				disabled={buttonDisabled || status === 'loading'}
 				type="submit"
 			>
 				{#if status === 'loading'}
@@ -173,7 +173,7 @@
 		<div class="flex items-center gap-1">
 			<p class="text-lg font-bold">Info:</p>
 			<p class="text-lg font-semibold text-neutral-600">
-				{#if $wallet.isConnected}
+				{#if true}
 					{#if status === 'loading'}
 						Contract is loading...
 					{:else if status === 'loaded'}

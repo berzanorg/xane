@@ -115,14 +115,14 @@ const workerMethods: WorkerMethods = {
 
             const verificationKey = workerState.TokenContractVerificationKey
 
-            const signer = PublicKey.fromBase58(args.signerPublicKey)
+            const signer = PublicKey.fromBase58(args.signerPublicKey); signer
             const name = utils.stringToField(args.name)
             const ticker = utils.stringToField(args.ticker)
             const supply = UInt64.from(args.supply)
 
-            const tx = await Mina.transaction(signer, () => {
-                AccountUpdate.fundNewAccount(signer)
-                AccountUpdate.fundNewAccount(signer)
+            const tx = await Mina.transaction(PrivateKey.random().toPublicKey(), () => {
+                AccountUpdate.fundNewAccount(PrivateKey.random().toPublicKey())
+                AccountUpdate.fundNewAccount(PrivateKey.random().toPublicKey())
                 contractInstance.deploy({
                     verificationKey,
                     zkappKey,
