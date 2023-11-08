@@ -31,6 +31,7 @@
 		workerClient.on('ready', {
 			async ok() {
 				workerClient?.send({ kind: 'loadContract' })
+				console.log('load contract message is sent to worker')
 			},
 			err() {
 				alert('Worker Error')
