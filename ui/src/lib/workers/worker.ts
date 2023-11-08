@@ -107,6 +107,7 @@ const workerMethods: WorkerMethods = {
     deployContract: async (args) => {
         try {
             if (workerState.status !== 'compiled') return
+            Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
             const zkappKey = PrivateKey.random()
             const contractInstance = new workerState.TokenContract(zkappKey.toPublicKey())
 
