@@ -32,6 +32,7 @@ export class WorkerClient {
         })
 
         this.worker.addEventListener('message', async (event: MessageEvent<WorkerResponse>) => {
+            console.log('Message from worker is received', JSON.stringify(event.data))
             if (event.data.args === undefined) {
                 this.handlers[event.data.kind].err()
             } else {
