@@ -74,7 +74,11 @@ const workerMethods: WorkerMethods = {
     loadContract: async () => {
         if (workerState.status !== 'unloaded') return
 
+        console.log('loading from worker')
+
         const { Token } = await import('xane-contracts')
+
+        console.log('loaded from worker')
 
         workerState = {
             status: 'loaded',
