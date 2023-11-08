@@ -132,7 +132,7 @@ const workerMethods: WorkerMethods = {
                 })
             })
 
-            // await tx.prove()
+            await tx.prove()
 
             return tx.sign([zkappKey]).toJSON()
         } catch (error) {
