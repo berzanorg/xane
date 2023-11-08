@@ -1,7 +1,5 @@
 import type { WorkerAddListener, WorkerRequest, WorkerResponse, WorkerResponseHandlers } from './worker'
 
-let msgCount = 0;
-
 export class WorkerClient {
     worker: Worker
     handlers: WorkerResponseHandlers
@@ -34,10 +32,8 @@ export class WorkerClient {
         })
 
         this.worker.addEventListener('message', async (event: MessageEvent<WorkerResponse>) => {
-            console.log('Message from worker is received', JSON.stringify(event.data))
             if (event.data.args === undefined) {
-                console.log('Message has Error')
-                console.log(this.handlers[event.data.kind].err.toString())
+                console.log('Message has Error', event.data.kind)
                 this.handlers[event.data.kind].err()
             } else {
                 if (event.data.args === null) {
@@ -50,14 +46,7 @@ export class WorkerClient {
     }
 
     send(request: WorkerRequest) {
-        msgCount += 1
         this.worker.postMessage(request)
-        console.log(`
-        +++++++
-        msg id: ${msgCount}
-        kind: ${request.kind}
-        +++++++
-        `)
     }
 
     on: WorkerAddListener = (kind, handler) => {

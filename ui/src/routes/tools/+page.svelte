@@ -26,14 +26,11 @@
 				alert('Contract Loading Error')
 			}
 		})
-		console.log('mounted')
 		workerClient.on('ready', {
 			async ok() {
 				workerClient?.send({ kind: 'loadContract' })
-				console.log('load contract message is sent to worker')
 			},
 			err() {
-				console.log('err is called')
 				alert('Worker Error')
 			}
 		})
@@ -65,7 +62,6 @@
 		status = 'deploying'
 		workerClient?.on('deployContract', {
 			async ok(txAsJson) {
-				console.log(txAsJson)
 				const hash = await wallet.sendTransaction(txAsJson)
 				if (typeof hash === 'string') {
 					status = 'deployed'

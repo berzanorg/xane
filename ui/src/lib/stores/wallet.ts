@@ -150,8 +150,6 @@ const createStore = () => {
                 memo: 'zk',
             }
             const { hash } = await window.mina.sendTransaction({ transaction, feePayer })
-            console.log('Transaction hash is below.')
-            console.log(hash)
             return hash
         } catch (err) {
             if (err?.code === 4001) return

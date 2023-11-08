@@ -119,7 +119,6 @@ const workerMethods: WorkerMethods = {
             const name = utils.stringToField(args.name)
             const ticker = utils.stringToField(args.ticker)
             const supply = UInt64.from(args.supply)
-
             const tx = await Mina.transaction(signer, () => {
                 AccountUpdate.fundNewAccount(signer)
                 AccountUpdate.fundNewAccount(signer)
