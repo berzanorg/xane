@@ -1,8 +1,18 @@
 <script lang="ts">
 	import { wallet } from '$lib/stores/wallet'
-	import { deployTokenContract } from '$lib/utils/contracts'
+	import { WorkerClient } from '$lib/workers/client'
+	import { PublicKey, UInt64 } from 'o1js'
+	import { onMount } from 'svelte'
+	import { utils } from 'xane-contracts'
 
-	let status: 'not-started' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'not-started'
+	let status:
+		| 'not-loaded'
+		| 'loading'
+		| 'loaded'
+		| 'compiling'
+		| 'compiled'
+		| 'deploying'
+		| 'deployed' = 'not-loaded'
 
 	let buttonDisabled: boolean = false
 	let inputsDisabled: boolean = false
@@ -12,17 +22,41 @@
 	let bindedTokenSupply: string = ''
 
 	let txHash: string = ''
+	let workerClient: null | WorkerClient = null
+
+	onMount(async () => {
+		workerClient = await WorkerClient.create()
+
+		status = 'loading'
+		workerClient.on('loadContract', {
+			async ok() {
+				status = 'loaded'
+			},
+			err() {
+				status = 'not-loaded'
+				alert('Contract Loading Error')
+			}
+		})
+		workerClient.send({ kind: 'loadContract' })
+	})
 
 	const compileContract = async () => {
 		buttonDisabled = true
 		inputsDisabled = true
 
 		status = 'compiling'
-		const { Token } = await import('xane-contracts')
-		await Token.compile()
-		status = 'compiled'
-
-		buttonDisabled = false
+		workerClient?.on('compileContract', {
+			async ok() {
+				status = 'compiled'
+				buttonDisabled = false
+			},
+			err() {
+				status = 'loaded'
+				buttonDisabled = false
+				alert('Compilation Error')
+			}
+		})
+		workerClient?.send({ kind: 'compileContract' })
 	}
 
 	const deployContract = async () => {
@@ -31,27 +65,38 @@
 		buttonDisabled = true
 
 		status = 'deploying'
-
-		try {
-			const hash = await deployTokenContract({
-				signer: $wallet.address,
-				name: bindedTokenName,
-				ticker: bindedTokenTicker,
-				supply: parseInt(bindedTokenSupply)
-			})
-
-			if (hash) {
-				status = 'deployed'
-				txHash = hash
-			} else {
+		workerClient?.on('deployContract', {
+			async ok(txAsJson) {
+				const hash = await wallet.sendTransaction(txAsJson)
+				if (typeof hash === 'string') {
+					status = 'deployed'
+					txHash = hash
+				} else {
+					status = 'compiled'
+					buttonDisabled = false
+					alert('Transaction Sending Error')
+				}
+			},
+			err() {
 				status = 'compiled'
 				buttonDisabled = false
+				alert('Deployment Error')
 			}
+		})
+		try {
+			workerClient?.send({
+				kind: 'deployContract',
+				args: {
+					name: utils.stringToField(bindedTokenName),
+					ticker: utils.stringToField(bindedTokenTicker),
+					supply: UInt64.from(parseInt(bindedTokenSupply)),
+					signerPublicKey: PublicKey.fromBase58($wallet.address)
+				}
+			})
 		} catch (error) {
-			alert('An unexpected error is occured.')
+			console.error('Conversion error.')
 			console.error(error)
-			status = 'compiled'
-			buttonDisabled = false
+			alert('Open console to see the error.')
 		}
 	}
 </script>
@@ -60,7 +105,7 @@
 	<form
 		class="flex flex-col gap-5"
 		action=""
-		on:submit={status === 'not-started'
+		on:submit={status === 'loaded'
 			? compileContract
 			: status === 'compiled'
 			? deployContract
@@ -73,7 +118,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
 				required
 				placeholder="My Token"
 			/>
@@ -84,7 +129,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg uppercase disabled:cursor-not-allowed"
 				maxlength={3}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
 				required
 				placeholder="MYT"
 			/>
@@ -96,7 +141,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="number"
-				disabled={inputsDisabled || !$wallet.isConnected}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
 				required
 				placeholder="1000"
 			/>
@@ -104,10 +149,14 @@
 		<div class="flex items-center">
 			<button
 				class="self-start h-10 px-5 font-bold text-black duration-150 bg-white rounded-xlg hover:scale-95 active:scale-85 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-				disabled={buttonDisabled || !$wallet.isConnected}
+				disabled={buttonDisabled || !$wallet.isConnected || status === 'not-loaded'}
 				type="submit"
 			>
-				{#if status === 'not-started'}
+				{#if status === 'not-loaded'}
+					Loading...
+				{:else if status === 'loading'}
+					Loading...
+				{:else if status === 'loaded'}
 					Compile Contract
 				{:else if status === 'compiling'}
 					Compiling...
@@ -125,7 +174,11 @@
 			<p class="text-lg font-bold">Info:</p>
 			<p class="text-lg font-semibold text-neutral-600">
 				{#if $wallet.isConnected}
-					{#if status === 'not-started'}
+					{#if status === 'not-loaded'}
+						Contract is not loaded.
+					{:else if status === 'loading'}
+						Contract is loading...
+					{:else if status === 'loaded'}
 						Contract is ready to be compiled.
 					{:else if status === 'compiling'}
 						Compiling token contract...
