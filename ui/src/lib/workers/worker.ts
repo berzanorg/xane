@@ -1,5 +1,5 @@
 import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, UInt64 } from "o1js";
-import type { Token } from "xane-contracts";
+import { utils, type Token } from "xane-contracts";
 
 /** The type that represents the state of the worker. */
 type WorkerState =
@@ -25,10 +25,10 @@ type WorkerMethods = {
     loadContract: () => Promise<undefined | null>
     compileContract: () => Promise<undefined | null>
     deployContract: (args: {
-        signerPublicKey: PublicKey
-        name: Field
-        ticker: Field
-        supply: UInt64
+        signerPublicKey: string
+        name: string
+        ticker: string
+        supply: number
     }) => Promise<undefined | string>
 }
 
@@ -113,15 +113,20 @@ const workerMethods: WorkerMethods = {
 
             const verificationKey = workerState.TokenContractVerificationKey
 
-            const tx = await Mina.transaction(args.signerPublicKey, () => {
-                AccountUpdate.fundNewAccount(args.signerPublicKey)
-                AccountUpdate.fundNewAccount(args.signerPublicKey)
+            const signer = PublicKey.fromBase58(args.signerPublicKey)
+            const name = utils.stringToField(args.name)
+            const ticker = utils.stringToField(args.ticker)
+            const supply = UInt64.from(args.supply)
+
+            const tx = await Mina.transaction(signer, () => {
+                AccountUpdate.fundNewAccount(signer)
+                AccountUpdate.fundNewAccount(signer)
                 contractInstance.deploy({
                     verificationKey,
                     zkappKey,
-                    name: args.name,
-                    ticker: args.ticker,
-                    supply: args.supply,
+                    name,
+                    ticker,
+                    supply,
                 })
             })
 

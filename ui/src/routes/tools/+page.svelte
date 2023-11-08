@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { wallet } from '$lib/stores/wallet'
 	import { WorkerClient } from '$lib/workers/client'
-	import { PublicKey, UInt64 } from 'o1js'
 	import { onMount } from 'svelte'
-	import { utils } from 'xane-contracts'
 
 	let status: 'loading' | 'loaded' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'loading'
 
@@ -88,10 +86,10 @@
 			workerClient?.send({
 				kind: 'deployContract',
 				args: {
-					name: utils.stringToField(bindedTokenName),
-					ticker: utils.stringToField(bindedTokenTicker),
-					supply: UInt64.from(parseInt(bindedTokenSupply)),
-					signerPublicKey: PublicKey.fromBase58($wallet.address)
+					name: bindedTokenName,
+					ticker: bindedTokenTicker,
+					supply: parseInt(bindedTokenSupply),
+					signerPublicKey: $wallet.address
 				}
 			})
 		} catch (error) {
