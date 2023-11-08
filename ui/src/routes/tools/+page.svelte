@@ -28,6 +28,7 @@
 				alert('Contract Loading Error')
 			}
 		})
+		console.log('mounted')
 		workerClient.on('ready', {
 			async ok() {
 				workerClient?.send({ kind: 'loadContract' })

@@ -60,8 +60,22 @@ export class WorkerClient {
         `)
     }
 
-    on: WorkerAddListener = (kind, { ok, err }) => {
-        this.handlers[kind].ok = ok
-        this.handlers[kind].err = err
+    on: WorkerAddListener = (kind, handler) => {
+        switch (kind) {
+            case 'ready':
+                this.handlers.ready = handler
+                break
+            case 'loadContract':
+                this.handlers.loadContract = handler
+                break
+            case 'compileContract':
+                this.handlers.compileContract = handler
+                break
+            case 'deployContract':
+                this.handlers.deployContract = handler
+                break
+            default:
+                console.error('invalid kind', kind)
+        }
     }
 }
