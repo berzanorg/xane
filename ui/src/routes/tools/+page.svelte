@@ -5,14 +5,7 @@
 	import { onMount } from 'svelte'
 	import { utils } from 'xane-contracts'
 
-	let status:
-		| 'not-loaded'
-		| 'loading'
-		| 'loaded'
-		| 'compiling'
-		| 'compiled'
-		| 'deploying'
-		| 'deployed' = 'not-loaded'
+	let status: 'loading' | 'loaded' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'loading'
 
 	let buttonDisabled: boolean = false
 	let inputsDisabled: boolean = false
@@ -27,13 +20,11 @@
 	onMount(async () => {
 		workerClient = await WorkerClient.create()
 
-		status = 'loading'
 		workerClient.on('loadContract', {
 			async ok() {
 				status = 'loaded'
 			},
 			err() {
-				status = 'not-loaded'
 				alert('Contract Loading Error')
 			}
 		})
@@ -118,7 +109,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="My Token"
 			/>
@@ -129,7 +120,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg uppercase disabled:cursor-not-allowed"
 				maxlength={3}
 				type="text"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="MYT"
 			/>
@@ -141,7 +132,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="number"
-				disabled={inputsDisabled || !$wallet.isConnected || status === 'not-loaded'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="1000"
 			/>
@@ -149,12 +140,10 @@
 		<div class="flex items-center">
 			<button
 				class="self-start h-10 px-5 font-bold text-black duration-150 bg-white rounded-xlg hover:scale-95 active:scale-85 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-				disabled={buttonDisabled || !$wallet.isConnected || status === 'not-loaded'}
+				disabled={buttonDisabled || !$wallet.isConnected || status === 'loading'}
 				type="submit"
 			>
-				{#if status === 'not-loaded'}
-					Loading...
-				{:else if status === 'loading'}
+				{#if status === 'loading'}
 					Loading...
 				{:else if status === 'loaded'}
 					Compile Contract
@@ -174,9 +163,7 @@
 			<p class="text-lg font-bold">Info:</p>
 			<p class="text-lg font-semibold text-neutral-600">
 				{#if $wallet.isConnected}
-					{#if status === 'not-loaded'}
-						Contract is not loaded.
-					{:else if status === 'loading'}
+					{#if status === 'loading'}
 						Contract is loading...
 					{:else if status === 'loaded'}
 						Contract is ready to be compiled.
