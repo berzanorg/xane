@@ -152,3 +152,5 @@ addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 })
 
 console.log('The worker is successfully started.')
+
+postMessage(await workerMethods.ready())
