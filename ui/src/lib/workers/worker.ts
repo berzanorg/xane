@@ -107,7 +107,7 @@ const workerMethods: WorkerMethods = {
     deployContract: async (args) => {
         try {
             if (workerState.status !== 'compiled') return
-            const { utils, o1js: { AccountUpdate, Mina, PrivateKey, UInt64 } } = await import('xane-contracts')
+            const { utils, o1js: { AccountUpdate, Mina, PrivateKey, PublicKey, UInt64 } } = await import('xane-contracts')
 
             Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
             const zkappKey = PrivateKey.random()
@@ -115,14 +115,14 @@ const workerMethods: WorkerMethods = {
 
             const verificationKey = workerState.TokenContractVerificationKey
 
-            // const signer = PublicKey.fromBase58(args.signerPublicKey); signer
+            const signer = PublicKey.fromBase58('B62qqe1xZAr2FVoosaipgWZFLa7YfPN81uQn5XG3ovAQXex9JvKjZAe')
             const name = utils.stringToField(args.name)
             const ticker = utils.stringToField(args.ticker)
             const supply = UInt64.from(args.supply)
 
-            const tx = await Mina.transaction(PrivateKey.random().toPublicKey(), () => {
-                AccountUpdate.fundNewAccount(PrivateKey.random().toPublicKey())
-                AccountUpdate.fundNewAccount(PrivateKey.random().toPublicKey())
+            const tx = await Mina.transaction(signer, () => {
+                AccountUpdate.fundNewAccount(signer)
+                AccountUpdate.fundNewAccount(signer)
                 contractInstance.deploy({
                     verificationKey,
                     zkappKey,
