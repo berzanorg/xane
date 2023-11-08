@@ -1,6 +1,6 @@
 
 import type { Field } from "o1js";
-import { utils, type Token } from "xane-contracts";
+import type { Token } from "xane-contracts";
 
 /** The type that represents the state of the worker. */
 type WorkerState =
@@ -109,6 +109,8 @@ const workerMethods: WorkerMethods = {
         try {
             if (workerState.status !== 'compiled') return
             const { AccountUpdate, Mina, PrivateKey, PublicKey, UInt64 } = await import('o1js')
+            const { utils } = await import('xane-contracts')
+
             Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
             const zkappKey = PrivateKey.random()
             const contractInstance = new workerState.TokenContract(zkappKey.toPublicKey())
@@ -132,7 +134,7 @@ const workerMethods: WorkerMethods = {
                 })
             })
 
-            await tx.prove()
+            // await tx.prove()
 
             return tx.sign([zkappKey]).toJSON()
         } catch (error) {
