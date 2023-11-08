@@ -138,13 +138,22 @@ const workerMethods: WorkerMethods = {
 addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     switch (event.data.kind) {
         case 'loadContract':
-            postMessage(await workerMethods.loadContract())
+            postMessage({
+                kind: 'loadContract',
+                args: await workerMethods.loadContract(),
+            } satisfies WorkerResponse)
             break
         case 'compileContract':
-            postMessage(await workerMethods.compileContract())
+            postMessage({
+                kind: 'compileContract',
+                args: await workerMethods.compileContract(),
+            } satisfies WorkerResponse)
             break
         case 'deployContract':
-            postMessage(await workerMethods.deployContract(event.data.args))
+            postMessage({
+                kind: 'deployContract',
+                args: await workerMethods.deployContract(event.data.args)
+            } satisfies WorkerResponse)
             break
         default:
             console.error('Worker received mistaken message', JSON.stringify(event.data))
@@ -153,4 +162,7 @@ addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
 
 console.log('The worker is successfully started.')
 
-postMessage(await workerMethods.ready())
+postMessage({
+    kind: 'ready',
+    args: await workerMethods.ready()
+} satisfies WorkerResponse)
