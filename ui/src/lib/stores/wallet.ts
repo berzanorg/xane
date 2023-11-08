@@ -1,4 +1,4 @@
-import type { Field, Signature } from "o1js"
+import type { o1js } from "xane-contracts"
 import { writable } from "svelte/store"
 
 /**
@@ -121,7 +121,7 @@ const createStore = () => {
     }
 
     /** Signs the given fields. Returns the signature. If an error occurs, returns `null`. */
-    const signFields = async (fields: Array<Field>): Promise<null | Signature> => {
+    const signFields = async (fields: Array<o1js.Field>): Promise<null | o1js.Signature> => {
         if (!window.mina) {
             alert('Auro Wallet is not found.') // return if Auro Wallet is not found
             return null
@@ -129,7 +129,7 @@ const createStore = () => {
         try {
             const message = fields.map(field => field.toString())
             const signedFields = await window.mina.signFields({ message })
-            const { Signature } = await import('o1js')
+            const { o1js: { Signature } } = await import('xane-contracts')
             return Signature.fromBase58(signedFields.signature)
         } catch (err) {
             if (err?.code === 4001) return null
