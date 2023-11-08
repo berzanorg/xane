@@ -109,7 +109,7 @@ const workerMethods: WorkerMethods = {
             if (workerState.status !== 'compiled') return
             const { utils, o1js: { AccountUpdate, Mina, PrivateKey, PublicKey, UInt64 } } = await import('xane-contracts')
 
-            Mina.setActiveInstance(Mina.Network('https://proxy.berkeley.minaexplorer.com'))
+            Mina.setActiveInstance(Mina.Network('https://api.minascan.io/node/berkeley/v1/graphql'))
             const zkappKey = PrivateKey.random()
             const contractInstance = new workerState.TokenContract(zkappKey.toPublicKey())
 
