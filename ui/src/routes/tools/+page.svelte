@@ -59,6 +59,7 @@
 	}
 
 	const deployContract = async () => {
+		if (!$wallet.isConnected) return
 		buttonDisabled = true
 
 		status = 'deploying'
@@ -88,7 +89,7 @@
 					name: bindedTokenName,
 					ticker: bindedTokenTicker,
 					supply: parseInt(bindedTokenSupply),
-					signerPublicKey: $wallet.address as any
+					signerPublicKey: $wallet.address
 				}
 			})
 		} catch (error) {
@@ -116,7 +117,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="text"
-				disabled={inputsDisabled || status === 'loading'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="My Token"
 				bind:value={bindedTokenName}
@@ -128,7 +129,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg uppercase disabled:cursor-not-allowed"
 				maxlength={3}
 				type="text"
-				disabled={inputsDisabled || status === 'loading'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="MYT"
 				bind:value={bindedTokenTicker}
@@ -141,7 +142,7 @@
 				class="px-2.5 w-full placeholder:text-neutral-700 bg-neutral-900 border h-8 border-neutral-700 outline-none rounded-xlg disabled:cursor-not-allowed"
 				maxlength={32}
 				type="number"
-				disabled={inputsDisabled || status === 'loading'}
+				disabled={inputsDisabled || !$wallet.isConnected || status === 'loading'}
 				required
 				placeholder="1000"
 				bind:value={bindedTokenSupply}
@@ -150,7 +151,7 @@
 		<div class="flex items-center">
 			<button
 				class="self-start h-10 px-5 font-bold text-black duration-150 bg-white rounded-xlg hover:scale-95 active:scale-85 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100"
-				disabled={buttonDisabled || status === 'loading'}
+				disabled={buttonDisabled || !$wallet.isConnected || status === 'loading'}
 				type="submit"
 			>
 				{#if status === 'loading'}
@@ -172,7 +173,7 @@
 		<div class="flex items-center gap-1">
 			<p class="text-lg font-bold">Info:</p>
 			<p class="text-lg font-semibold text-neutral-600">
-				{#if true}
+				{#if $wallet.isConnected}
 					{#if status === 'loading'}
 						Contract is loading...
 					{:else if status === 'loaded'}
