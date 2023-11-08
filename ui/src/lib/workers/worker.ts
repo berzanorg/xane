@@ -21,6 +21,7 @@ type WorkerState =
 
 /** The type that represents the methods of the worker. */
 type WorkerMethods = {
+    ready: () => Promise<null>
     loadContract: () => Promise<undefined | null>
     compileContract: () => Promise<undefined | null>
     deployContract: (args: {
@@ -71,14 +72,11 @@ let workerState: WorkerState = {
 
 /** The methods of the worker. */
 const workerMethods: WorkerMethods = {
+    ready: async () => null,
     loadContract: async () => {
         if (workerState.status !== 'unloaded') return
 
-        console.log('loading from worker')
-
         const { Token } = await import('xane-contracts')
-
-        console.log('loaded from worker')
 
         workerState = {
             status: 'loaded',

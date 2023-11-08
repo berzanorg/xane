@@ -28,7 +28,14 @@
 				alert('Contract Loading Error')
 			}
 		})
-		workerClient.send({ kind: 'loadContract' })
+		workerClient.on('ready', {
+			async ok() {
+				workerClient?.send({ kind: 'loadContract' })
+			},
+			err() {
+				alert('Worker Error')
+			}
+		})
 	})
 
 	const compileContract = async () => {

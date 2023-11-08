@@ -23,7 +23,8 @@ export class WorkerClient {
         this.handlers = {
             loadContract: emptyListener,
             compileContract: emptyListener,
-            deployContract: emptyListener
+            deployContract: emptyListener,
+            ready: emptyListener
         }
 
         this.worker.addEventListener('error', (e) => {
