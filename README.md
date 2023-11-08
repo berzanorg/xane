@@ -41,8 +41,6 @@ This repository is a monorepo for both smart contracts and the user interface of
 
 
 ## Smart Contracts
-There is currently a single smart contract called **TokenX**.
-
 Smart contracts of **Xane** reside in [`contracts/`](https://github.com/BerzanXYZ/xane/tree/main/contracts) folder.
 <br>
 So you have to change the current working directory before working with them.
