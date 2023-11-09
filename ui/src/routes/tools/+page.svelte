@@ -98,7 +98,7 @@
 	}
 </script>
 
-<div class="flex flex-col max-w-md gap-8 py-4">
+<div class="flex flex-col w-full max-w-md gap-8 py-4 mx-auto">
 	<form
 		class="flex flex-col gap-5"
 		action=""

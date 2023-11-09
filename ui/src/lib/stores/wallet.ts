@@ -42,7 +42,8 @@ const createStore = () => {
     const addBalance = (amount: bigint, name: string, ticker: string) => {
         update(old => {
             if (!old.isConnected) return old
-            const index = old.balances.findIndex(balance => balance.ticker === ticker && balance.name === name) || old.balances.length
+            const possibleIndex = old.balances.findIndex(balance => balance.ticker === ticker && balance.name === name)
+            const index = possibleIndex > 0 ? possibleIndex : old.balances.length
             const balance = old.balances.at(index) || { amount, name, ticker }
             old.balances[index] = balance
             return old
