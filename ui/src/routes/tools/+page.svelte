@@ -61,12 +61,13 @@
 
 		status = 'deploying'
 		workerClient?.on('deployContract', {
-			async ok({ tokenId, transaction }) {
+			async ok({ transaction }) {
 				const hash = await wallet.sendTransaction(transaction)
 				if (typeof hash === 'string') {
 					status = 'deployed'
 					txHash = hash
-					console.log('TOKEN ID', tokenId)
+
+					wallet.addBalance(BigInt(parseInt(bindedTokenSupply)), bindedTokenName, bindedTokenTicker)
 				} else {
 					status = 'compiled'
 					buttonDisabled = false

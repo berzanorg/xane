@@ -32,7 +32,19 @@
 		</div>
 	</div>
 
-	<!--
+	<div class="flex flex-col gap-2">
 		<h2 class="text-2xl font-bold">Assets</h2>
-	-->
+		{#if $wallet.isConnected}
+			<div class="flex flex-col gap-1.5">
+				{#each $wallet.balances as balance}
+					<div class="flex items-center justify-between font-semibold">
+						<p>{balance.name}</p>
+						<p>{balance.amount} {balance.ticker}</p>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			Not Connected
+		{/if}
+	</div>
 </div>

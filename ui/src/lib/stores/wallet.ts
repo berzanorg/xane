@@ -38,6 +38,17 @@ const createStore = () => {
         balances: null
     })
 
+
+    const addBalance = (amount: bigint, name: string, ticker: string) => {
+        update(old => {
+            if (!old.isConnected) return old
+            const index = old.balances.findIndex(balance => balance.ticker === ticker && balance.name === name) || old.balances.length
+            const balance = old.balances.at(index) || { amount, name, ticker }
+            old.balances[index] = balance
+            return old
+        })
+    }
+
     /** Requests to connect Auro Wallet. */
     const connect = async () => {
         if (!window.mina) return alert('Auro Wallet is not found.') // return if Auro Wallet is not found
@@ -177,6 +188,7 @@ const createStore = () => {
         signFields,
         sendTransaction,
         connectIfAuthorized,
+        addBalance,
     }
 }
 
