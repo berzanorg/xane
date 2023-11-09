@@ -9,7 +9,8 @@
                 "heybourn.headwind",
                 "dbaeumer.vscode-eslint",
                 "svelte.svelte-vscode",
-                "rust-lang.rust-analyzer"
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml"
             ]
         }
     }
