@@ -115,7 +115,7 @@ const workerMethods: WorkerMethods = {
 
             const verificationKey = workerState.TokenContractVerificationKey
 
-            const signer = PublicKey.fromBase58('B62qqe1xZAr2FVoosaipgWZFLa7YfPN81uQn5XG3ovAQXex9JvKjZAe')
+            const signer = PublicKey.fromBase58(args.signerPublicKey)
             const name = utils.stringToField(args.name)
             const ticker = utils.stringToField(args.ticker)
             const supply = UInt64.from(args.supply)
