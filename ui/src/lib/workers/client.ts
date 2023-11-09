@@ -54,7 +54,24 @@ export class WorkerClient {
     }
 
     on<T extends keyof WorkerMethods>(kind: T, handler: WorkerResponseListener<T>) {
-        this.handlers[kind].ok = handler.ok
-        this.handlers[kind].err = handler.err
+        switch (kind) {
+            case 'ready':
+                this.handlers.ready = handler as any
+                break
+            case 'loadContract':
+                this.handlers.loadContract = handler as any
+                break
+            case 'compileContract':
+                this.handlers.compileContract = handler as any
+                break
+            case 'deployContract':
+                this.handlers.deployContract = handler as any
+                break
+            case 'getBalance':
+                this.handlers.getBalance = handler as any
+                break
+            default:
+                console.error('invalid kind', kind)
+        }
     }
 }
