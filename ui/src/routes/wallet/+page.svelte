@@ -3,14 +3,6 @@
 
 	import iconCopySvg from '$lib/assets/icon-copy.svg'
 	import { copy } from '$lib/utils/copy'
-	import { onMount } from 'svelte'
-
-	onMount(() => {
-		setTimeout(() => {
-			wallet.addBalance(100n, 'My Token', 'MYT')
-		}, 1000)
-	})
-	$: console.log($wallet.balances)
 </script>
 
 <div class="flex flex-col w-full max-w-md gap-8 py-4 mx-auto">
