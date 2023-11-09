@@ -39,11 +39,11 @@ const createStore = () => {
             const accounts = await window.mina.requestAccounts()
             const mainAddress = accounts[0]
             if (!mainAddress) return
-            const network = await window.mina.requestNetwork()
+            const { chainId } = await window.mina.requestNetwork()
             set({
                 isConnected: true,
                 address: mainAddress,
-                network,
+                network: chainId,
             })
             _addEventListeners()
         } catch (err) {
@@ -61,11 +61,11 @@ const createStore = () => {
             const accounts = await window.mina.getAccounts()
             const mainAddress = accounts[0]
             if (!mainAddress) return
-            const network = await window.mina.requestNetwork()
+            const { chainId } = await window.mina.requestNetwork()
             set({
                 isConnected: true,
                 address: mainAddress,
-                network,
+                network: chainId,
             })
             _addEventListeners()
         } catch (err) {

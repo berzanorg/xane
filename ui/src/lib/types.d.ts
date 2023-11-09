@@ -13,7 +13,9 @@ declare interface Window {
         getAccounts(): Promise<Array<string>>
 
         /** Returns the name of the selected network. */
-        requestNetwork(): Promise<'Mainnet' | 'Devnet' | 'Berkeley' | 'Testworld2' | 'Unknown'>
+        requestNetwork(): Promise<{
+            chainId: 'berkeley' | string
+        }>
 
         /** Makes a request to send a transaction. Returns its hash. Parameter `transaction` is JSON representation of the transaction. */
         sendTransaction(params: {

@@ -11,7 +11,7 @@
 
 		<div class="flex flex-col gap-1.5 text-lg font-semibold text-neutral-500">
 			{#if $wallet.isConnected}
-				{#if $wallet.network === 'Berkeley'}
+				{#if $wallet.network === 'berkeley'}
 					Berkeley Network
 				{:else}
 					Unsupported Network
