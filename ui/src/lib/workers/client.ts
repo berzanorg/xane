@@ -1,4 +1,4 @@
-import type { WorkerAddListener, WorkerRequest, WorkerResponse, WorkerResponseHandlers } from './worker'
+import type { WorkerMethods, WorkerRequest, WorkerResponse, WorkerResponseHandlers, WorkerResponseListener } from './worker'
 
 export class WorkerClient {
     worker: Worker
@@ -23,7 +23,8 @@ export class WorkerClient {
             loadContract: emptyListener,
             compileContract: emptyListener,
             deployContract: emptyListener,
-            ready: emptyListener
+            ready: emptyListener,
+            getBalance: emptyListener
         }
 
         this.worker.addEventListener('error', (e) => {
@@ -39,6 +40,9 @@ export class WorkerClient {
                 if (event.data.args === null) {
                     await this.handlers[event.data.kind].ok()
                 } else {
+                    // We can disable typescript below because it must always work.
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
                     await this.handlers[event.data.kind].ok(event.data.args)
                 }
             }
@@ -49,22 +53,8 @@ export class WorkerClient {
         this.worker.postMessage(request)
     }
 
-    on: WorkerAddListener = (kind, handler) => {
-        switch (kind) {
-            case 'ready':
-                this.handlers.ready = handler
-                break
-            case 'loadContract':
-                this.handlers.loadContract = handler
-                break
-            case 'compileContract':
-                this.handlers.compileContract = handler
-                break
-            case 'deployContract':
-                this.handlers.deployContract = handler
-                break
-            default:
-                console.error('invalid kind', kind)
-        }
+    on<T extends keyof WorkerMethods>(kind: T, handler: WorkerResponseListener<T>) {
+        this.handlers[kind].ok = handler.ok
+        this.handlers[kind].err = handler.err
     }
 }

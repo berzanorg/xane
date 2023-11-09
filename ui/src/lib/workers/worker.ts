@@ -20,8 +20,12 @@ type WorkerState =
     }
 
 /** The type that represents the methods of the worker. */
-type WorkerMethods = {
+export type WorkerMethods = {
     ready: () => Promise<null>
+    getBalance: (args: {
+        address: string
+        tokenId?: string
+    }) => Promise<undefined | bigint>
     loadContract: () => Promise<undefined | null>
     compileContract: () => Promise<undefined | null>
     deployContract: (args: {
@@ -29,14 +33,17 @@ type WorkerMethods = {
         name: string
         ticker: string
         supply: number
-    }) => Promise<undefined | string>
+    }) => Promise<undefined | {
+        transaction: string
+        tokenId: string
+    }>
 }
 
 /** The type that represents the requests that can be made to the worker. */
 export type WorkerRequest = {
-    [K in keyof WorkerMethods]: Parameters<WorkerMethods[K]> extends [] ? {
+    [K in keyof WorkerMethods]: WorkerMethodParameters<K> extends [] ? {
         kind: K
-    } : Parameters<WorkerMethods[K]> extends [infer A] ? {
+    } : WorkerMethodParameters<K> extends [infer A] ? {
         kind: K
         args: A
     } : never
@@ -46,7 +53,7 @@ export type WorkerRequest = {
 export type WorkerResponse = {
     [K in keyof WorkerMethods]: {
         kind: K
-        args: Awaited<ReturnType<WorkerMethods[K]>>
+        args: WorkerMethodReturnType<K>
     }
 }[keyof WorkerMethods]
 
@@ -55,9 +62,13 @@ export type WorkerAddListener<T extends keyof WorkerMethods = keyof WorkerMethod
 
 /** The type that represents a listener to a worker response. Contains both `ok` and `err` case. */
 export type WorkerResponseListener<T extends keyof WorkerMethods> = {
-    ok: Awaited<ReturnType<WorkerMethods[T]>> extends infer K ? K extends undefined ? never : K extends null ? () => Promise<void> : (args: K) => Promise<void> : never
+    ok: WorkerMethodReturnType<T> extends infer K ? K extends undefined ? never : K extends null ? () => Promise<void> : (args: K) => Promise<void> : never
     err: () => void
 }
+
+type WorkerMethodReturnType<T extends keyof WorkerMethods> = Awaited<ReturnType<WorkerMethods[T]>>
+type WorkerMethodParameters<T extends keyof WorkerMethods> = Parameters<WorkerMethods[T]>
+
 
 /** The type that represents the object that holds the handlers for each kind of worker responses. */
 export type WorkerResponseHandlers = {
@@ -73,6 +84,21 @@ let workerState: WorkerState = {
 /** The methods of the worker. */
 const workerMethods: WorkerMethods = {
     ready: async () => null,
+    getBalance: async (args) => {
+        try {
+            const { o1js } = await import('xane-contracts')
+            o1js.Mina.setActiveInstance(o1js.Mina.Network('https://api.minascan.io/node/berkeley/v1/graphql'))
+            const publicKey = o1js.PublicKey.fromBase58(args.address)
+            const tokenId = args.tokenId ? o1js.Field.from(args.tokenId) : undefined
+            const balance = o1js.Mina.getBalance(publicKey, tokenId)
+
+            return balance.toBigInt()
+        } catch (error) {
+            console.error('error while getting balance')
+            console.error(error)
+            return
+        }
+    },
     loadContract: async () => {
         if (workerState.status !== 'unloaded') return
 
@@ -133,7 +159,10 @@ const workerMethods: WorkerMethods = {
 
             await tx.prove()
 
-            return tx.sign([zkappKey]).toJSON()
+            return {
+                tokenId: contractInstance.token.id.toString(),
+                transaction: tx.sign([zkappKey]).toJSON()
+            }
         } catch (error) {
             console.error('Contract deployment inside the worker is failed.')
             console.error(error)

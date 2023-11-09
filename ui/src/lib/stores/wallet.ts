@@ -13,6 +13,11 @@ type ConnectedState = {
     isConnected: true
     address: string
     network: string
+    balances: Array<{
+        name: string
+        ticker: string
+        amount: bigint
+    }>
 }
 
 /** The type that represents the store when Auro Wallet is not connected. */
@@ -20,6 +25,7 @@ type NotConnectedState = {
     isConnected: false
     address: null
     network: null
+    balances: null
 }
 
 
@@ -29,6 +35,7 @@ const createStore = () => {
         isConnected: false,
         address: null,
         network: null,
+        balances: null
     })
 
     /** Requests to connect Auro Wallet. */
@@ -44,6 +51,7 @@ const createStore = () => {
                 isConnected: true,
                 address: mainAddress,
                 network: chainId,
+                balances: []
             })
             _addEventListeners()
         } catch (err) {
@@ -66,6 +74,7 @@ const createStore = () => {
                 isConnected: true,
                 address: mainAddress,
                 network: chainId,
+                balances: []
             })
             _addEventListeners()
         } catch (err) {
@@ -87,6 +96,7 @@ const createStore = () => {
                     isConnected: false,
                     address: null,
                     network: null,
+                    balances: null,
                 })
                 window.mina?.removeAllListeners()
             } else {
@@ -94,6 +104,7 @@ const createStore = () => {
                     isConnected: true,
                     address: mainAddress,
                     network: old.network,
+                    balances: []
                 } : old)
             }
         })
