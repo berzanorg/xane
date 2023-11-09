@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { wallet } from '$lib/stores/wallet'
 	import { WorkerClient } from '$lib/workers/client'
-	import { onMount } from 'svelte'
+	import { onDestroy, onMount } from 'svelte'
 
 	let status: 'loading' | 'loaded' | 'compiling' | 'compiled' | 'deploying' | 'deployed' = 'loading'
 
@@ -14,6 +14,10 @@
 
 	let txHash: string = ''
 	let workerClient: null | WorkerClient = null
+
+	onDestroy(() => {
+		workerClient?.terminateWorker()
+	})
 
 	onMount(async () => {
 		workerClient = await WorkerClient.create()

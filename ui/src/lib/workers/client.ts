@@ -49,6 +49,10 @@ export class WorkerClient {
         })
     }
 
+    terminateWorker() {
+        this.worker.terminate()
+    }
+
     send(request: WorkerRequest) {
         this.worker.postMessage(request)
     }
