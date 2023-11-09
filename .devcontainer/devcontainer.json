@@ -8,7 +8,8 @@
                 "bradlc.vscode-tailwindcss",
                 "heybourn.headwind",
                 "dbaeumer.vscode-eslint",
-                "svelte.svelte-vscode"
+                "svelte.svelte-vscode",
+                "rust-lang.rust-analyzer"
             ]
         }
     }
