@@ -1,4 +1,5 @@
-use server::Server;
+use anyhow::{Ok, Result};
+use server::start_server;
 
 mod database;
 mod exchange;
@@ -6,10 +7,10 @@ mod order_book;
 mod server;
 
 #[tokio::main]
-async fn main() {
-    // The program starts here.
+async fn main() -> Result<()> {
+    let port = 7777;
 
-    let mut server = Server::new();
+    start_server(port).await?;
 
-    server.start().await;
+    Ok(())
 }
