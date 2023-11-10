@@ -1,8 +1,11 @@
 # Xane 📈
 
-**Xane** (IPA: /ˈhane/) is an **zero knowledge order book decentralized exchange**.
+**Xane** (IPA: /ˈhane/) is a **zero knowledge order book decentralized exchange**.
 
-**Xane** is live at [xane.pages.dev](https://xane.pages.dev).
+> Currently, only creating your own token is live. <br>
+> It allows you to deploy your own token contract via your browser.
+
+**Xane** is live at [xane.pages.dev/tools](https://xane.pages.dev/tools).
 
 ## Prerequirements
 You need [TypeScript](https://www.typescriptlang.org/) knowledge for smart contract development. 
@@ -11,7 +14,7 @@ You need [Svelte](https://svelte.dev/) knowledge for user interface development.
 <br>
 You need [Rust](https://www.rust-lang.org/) knowledge for backend development.
 <br>
-You also need [zkApps](https://docs.minaprotocol.com/zkapps) knowledge to have a general understanding of [zkApps](https://docs.minaprotocol.com/zkapps).
+You also need [zkApps](https://docs.minaprotocol.com/zkapps) knowledge to have a general understanding of zkApps.
 
 
 
@@ -40,12 +43,16 @@ If you prefer a more traditional way to setup a development environment, you onl
 
 
 ## Project Structure
-This repository is a monorepo for the smart contracts, the user interface, and the backend of **Xane**, a zero knowledge order book decentralized exchange. 
+This repository is a monorepo for the smart contracts, the user interface, and the backend of **Xane**. 
 
 
 
 ## Smart Contracts
 It currently contains both `Token` contract, and `Exchange` contract (which is not complete).
+
+`Token` contract is a simple token standard.
+
+`Exchange` contract is an order book based exchange (which is not complete).
 
 Smart contracts of **Xane** reside in [`contracts/`](https://github.com/BerzanXYZ/xane/tree/main/contracts) folder.
 <br>
@@ -59,6 +66,10 @@ You can run all the tests by running the command below.
 npm run test
 ```
 
+You can also run a specific test by running the command below.
+```sh
+npm run test -- Token # or <TEST_NAME>
+```
 
 
 ## User Interface
@@ -81,7 +92,7 @@ npm run dev #  then visit localhost:5173 too see the preview
 ## Backend
 The backend of **Xane** is built using [Rust Language](https://www.rust-lang.org/)
 
-IT resides in [`backend/`](https://github.com/BerzanXYZ/xane/tree/main/backend) folder.
+It resides in [`backend/`](https://github.com/BerzanXYZ/xane/tree/main/backend) folder.
 <br>
 So you have to change the current working directory before working with them.
 ```sh
