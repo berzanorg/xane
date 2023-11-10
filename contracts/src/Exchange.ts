@@ -1,33 +1,60 @@
-import { DeployArgs, Field, MerkleTree, MerkleWitness, Permissions, Poseidon, PublicKey, SmartContract, State, Struct, UInt64, method, state } from "o1js"
+import { DeployArgs, Field, MerkleMap, MerkleMapWitness, Permissions, Poseidon, Provable, PublicKey, SmartContract, State, Struct, UInt64, method, state } from "o1js"
 import { Token } from "./Token"
 
-class Account extends Struct({
-    points: UInt64,
-    publicKey: PublicKey,
+
+
+
+
+/**
+ * It represents a pair.
+ */
+class Pair extends Struct({
+    tokenAddressOne: PublicKey,
+    tokenAddressTwo: PublicKey,
+    tempValue: Field
 }) {
-    hash(): Field {
-        return Poseidon.hash(Account.toFields(this))
+    /**
+     * Hash of the key of the `Pair`.
+     */
+    keyHash(): Field {
+        // calculate hashes of two tokens separately.
+        const hashOne = Poseidon.hash(this.tokenAddressOne.toFields())
+        const hashTwo = Poseidon.hash(this.tokenAddressTwo.toFields())
+
+        // no matter in what order tokens are given, always get them in the same order by comparing.
+        const greaterHash = Provable.if(hashOne.greaterThan(hashTwo), hashOne, hashTwo)
+        const lowerHash = Provable.if(hashOne.greaterThan(hashTwo), hashTwo, hashOne)
+
+        // we can't allow a pair where both sides are the same token.
+        greaterHash.assertNotEquals(lowerHash)
+
+        // return hash of both tokens.
+        return Poseidon.hash([greaterHash, lowerHash])
     }
 
-    addPoint(): Account {
-        return new Account({
-            points: this.points.add(1),
-            publicKey: this.publicKey,
-        })
+    /**
+     * Hash of the value of the `Pair`.
+     */
+    valueHash(): Field {
+        return Poseidon.hash([this.tempValue])
     }
 }
 
-export let INITIAL_MERKLE_ROOT: Field = Field(0)
+/**
+ * Initial value as the root of an empty `MerkleMap`.
+ */
+export let INITIAL_MERKLE_ROOT: Field = new MerkleMap().getRoot()
 
-class ExchangeMerkleWitness extends MerkleWitness(8) { }
 
+/**
+ * An order book decentralized exchange that allows trading of tokens.
+ */
 export class Exchange extends SmartContract {
     /**
-     * Root of the merkle tree that stores all the placed orders.
+     * Root of the merkle map that stores all the pairs.
      */
-    @state(Field) merkleRoot = State<Field>()
+    @state(Field) root = State<Field>()
 
-    /** Deploys the smart contract. */
     deploy(args: DeployArgs) {
         super.deploy(args)
         this.account.permissions.set({
@@ -42,23 +69,24 @@ export class Exchange extends SmartContract {
 
     @method init() {
         super.init()
-        this.merkleRoot.set(INITIAL_MERKLE_ROOT)
+        this.root.set(INITIAL_MERKLE_ROOT)
     }
 
-    @method testingMethod(path: ExchangeMerkleWitness, account: Account) {
-        // Get the merkle tree's root. 
-        const merkleRoot = this.merkleRoot.getAndAssertEquals()
 
-        // Require data to be within the merkle tree.
-        path.calculateRoot(account.hash()).assertEquals(merkleRoot)
+    @method addNewPair(path: MerkleMapWitness, pair: Pair) {
+        const root = this.root.getAndAssertEquals()
+        const [computedRoot, computedKey] = path.computeRootAndKey(Field(0))
 
-        const updatedAccount = account.addPoint()
+        // require that roots are the same.
+        root.assertEquals(computedRoot)
 
-        const newMerkleRoot = path.calculateRoot(updatedAccount.hash())
+        // require that the pair isn't created yet.
+        pair.keyHash().assertEquals(computedKey)
 
-        this.merkleRoot.set(newMerkleRoot)
+        const [newRoot] = path.computeRootAndKey(pair.valueHash())
+
+        this.root.set(newRoot)
     }
-
 
     @method placeOrder(tokenToSellContractAddress: PublicKey, tokenToGetContractAddress: PublicKey, amount: UInt64) {
         const tokenToSell = new Token(tokenToSellContractAddress)
@@ -66,3 +94,5 @@ export class Exchange extends SmartContract {
         tokenToSell.sendTokens(this.sender, this.address, amount)
     }
 }
+
+
