@@ -1,24 +1,21 @@
 name: Test Smart Contracts
+
 on: 
   push:
     paths:
       - 'contracts/**'
+
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - name: Git checkout
-      uses: actions/checkout@v4
-    - name: Setup NodeJS
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-    - name: Enable PNPM
-      run: corepack enable pnpm
-    - name: Install dependencies
-      run: pnpm install --prefix contracts/
-    - name: Build smart contracts 
-      run: npm run build --prefix contracts/ 
-    - name: Run tests
-      run: npm run test --prefix contracts/
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: corepack enable pnpm
+      - run: pnpm install --prefix contracts/
+      - run: npm run build --prefix contracts/ 
+      - run: npm run test --prefix contracts/
