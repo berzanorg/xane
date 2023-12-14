@@ -9,19 +9,16 @@ jobs:
     timeout-minutes: 10
     steps:
     - name: Git checkout
-      uses: actions/checkout@v3
-    - name: Setup PNPM
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
+      uses: actions/checkout@v4
     - name: Setup NodeJS
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: 'pnpm'
+        node-version: 20
+    - name: Enable PNPM
+      run: corepack enable pnpm
     - name: Install dependencies
-      run: pnpm install
-    - name: Build smart contracts
-      run: pnpm run build --if-present
+      run: pnpm install --prefix contracts/
+    - name: Build smart contracts 
+      run: npm run build --prefix contracts/ 
     - name: Run tests
-      run: pnpm run test
+      run: npm run test --prefix contracts/
