@@ -1,6 +1,7 @@
 use anyhow::Result;
 use server::start_server;
 
+mod new;
 mod exchange;
 mod mina;
 mod order;
