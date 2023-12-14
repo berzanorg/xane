@@ -1,0 +1,27 @@
+name: Test Smart Contracts
+on: 
+  push:
+    paths:
+      - 'contracts/**'
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v3
+    - name: Setup PNPM
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    - name: Setup NodeJS
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+    - name: Install dependencies
+      run: pnpm install
+    - name: Build smart contracts
+      run: pnpm run build --if-present
+    - name: Run tests
+      run: pnpm run test
