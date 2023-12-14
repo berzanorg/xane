@@ -1,8 +1,5 @@
-import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Signature, UInt32, UInt64 } from 'o1js'
+import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Signature, UInt32, UInt64, Encoding } from 'o1js'
 import { Token } from './Token'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { fieldToString, stringToField } from './utils'
 
 
 const proofsEnabled = false
@@ -32,8 +29,8 @@ describe('Token Contract', () => {
   })
 
   it('can create a new token', async () => {
-    const ticker = stringToField('MY')
-    const name = stringToField('My Token')
+    const ticker = Encoding.stringToFields('MY')[0]
+    const name = Encoding.stringToFields('My Token')[0]
     const supply = UInt64.from(100_000_000)
 
     const tx = await Mina.transaction(deployerPublicKey, () => {

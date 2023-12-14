@@ -1,9 +1,6 @@
-import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Signature, UInt32, UInt64 } from 'o1js'
+import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, Encoding, UInt64 } from 'o1js'
 import { Exchange } from './Exchange'
 import { Token } from './Token'
-import { stringToField } from './utils'
-
-
 
 const proofsEnabled = false
 
@@ -75,8 +72,8 @@ describe('Exchange Contract', () => {
       AccountUpdate.fundNewAccount(user1PublicKey)
       AccountUpdate.fundNewAccount(user1PublicKey)
 
-      const name = stringToField('ONE')
-      const ticker = stringToField('Token One')
+      const name = Encoding.stringToFields('ONE')[0]
+      const ticker = Encoding.stringToFields('Token One')[0]
       const supply = UInt64.from(21_000_000)
 
       tokenOneZkAppInstance.deploy({
@@ -101,8 +98,8 @@ describe('Exchange Contract', () => {
       AccountUpdate.fundNewAccount(user2PublicKey)
       AccountUpdate.fundNewAccount(user2PublicKey)
 
-      const name = stringToField('TWO')
-      const ticker = stringToField('Token Two')
+      const name = Encoding.stringToFields('TWO')[0]
+      const ticker = Encoding.stringToFields('Token Two')[0]
       const supply = UInt64.from(100_000_000)
 
       tokenTwoZkAppInstance.deploy({
