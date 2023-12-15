@@ -11,11 +11,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: 'npm'
-      - run: corepack enable pnpm
+          cache: 'pnpm'
+          cache-dependency-path: 'contracts/pnpm-lock.yaml'
       - run: pnpm install --prefix contracts/
       - run: npm run build --prefix contracts/ 
       - run: npm run test --prefix contracts/
