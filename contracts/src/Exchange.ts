@@ -1,67 +1,98 @@
-import { DeployArgs, Field, MerkleMap, MerkleMapWitness, MerkleTree, MerkleWitness, Permissions, Poseidon, Provable, PublicKey, Signature, SmartContract, State, Struct, UInt64, method, state } from "o1js"
-import { Token } from "./Token"
+import { Token } from './Token'
+import {
+    DeployArgs,
+    Field,
+    MerkleTree,
+    MerkleWitness,
+    Permissions,
+    Poseidon,
+    Provable,
+    PublicKey,
+    Signature,
+    SmartContract,
+    State,
+    Struct,
+    UInt64,
+    method,
+    state,
+} from 'o1js'
+
+/**
+ * Creates the type of the object specifiying the layout of `Struct` from given type.
+ *
+ * So you can make sure that both types are the same.
+ *
+ * # Usage
+ *
+ * ```ts
+ * type UserObject = {
+ *     name: Field
+ *     age: UInt32
+ * }
+ *
+ * class User extends Struct({
+ *     name: Field,
+ *     age: UInt32,
+ * } satisfies StructLayout<UserObject>) {}
+ * ```
+ */
+type StructLayout<T> = {
+    [P in keyof T]: { new (...args: any[]): T[P] }
+}
 
 const FIELD_ZERO = Field.from(0)
 
-const HEIGHT_OF_ORDERS_MERKLE_TREE = 10
-const HEIGHT_OF_PAIRS_MERKLE_TREE = 10
+const ORDERS_HEIGHT = 10
+const PAIRS_HEIGHT = 10
 
-const ROOT_OF_EMPTY_ORDERS_MERKLE_TREE = new MerkleTree(HEIGHT_OF_ORDERS_MERKLE_TREE).getRoot()
+class OrdersWitness extends MerkleWitness(ORDERS_HEIGHT) {}
+class PairsWitness extends MerkleWitness(PAIRS_HEIGHT) {}
 
-class MerkleWitnessForOrdersTree extends MerkleWitness(HEIGHT_OF_ORDERS_MERKLE_TREE) { }
-class MerkleWitnessForPairsTree extends MerkleWitness(HEIGHT_OF_PAIRS_MERKLE_TREE) { }
+enum Error {
+    SameCurrencies = "A pair can't have the same currencies.",
+    PairAlreadyExists = 'The pair already exists.',
+    MistakenPair = 'The pair provided is mistaken.',
+    InvalidSignature = 'The authority signature is not valid.',
+}
+
+type PairObject = {
+    baseCurrencyAddress: PublicKey
+    quoteCurrencyAddress: PublicKey
+    buyOrdersRoot: Field
+    sellOrdersRoot: Field
+}
 
 class Pair extends Struct({
-    buySideToken: PublicKey,
-    sellSideToken: PublicKey,
-    sellOrdersRoot: Field,
+    baseCurrencyAddress: PublicKey,
+    quoteCurrencyAddress: PublicKey,
     buyOrdersRoot: Field,
-}) {
-
+    sellOrdersRoot: Field,
+} satisfies StructLayout<PairObject>) {
     hash(): Field {
-        return Poseidon.hash([...this.buySideToken.toFields(), ...this.sellSideToken.toFields(), this.buyOrdersRoot, this.sellOrdersRoot])
-    }
-
-    static new(tokenOne: PublicKey, tokenTwo: PublicKey, buyOrdersRoot: Field, sellOrdersRoot: Field): Pair {
-        // we can't allow a pair where both sides are the same token.
-        tokenOne.equals(tokenTwo).assertFalse()
-
-        // calculate hashes of two tokens separately.
-        const hashOne = Poseidon.hash(tokenOne.toFields())
-        const hashTwo = Poseidon.hash(tokenTwo.toFields())
-
-        // no matter in what order tokens are given, always get them in the same order by comparing.
-        const buySideToken = Provable.if(hashOne.greaterThan(hashTwo), tokenOne, tokenTwo)
-        const sellSideToken = Provable.if(hashOne.greaterThan(hashTwo), tokenTwo, tokenOne)
-
-        return new Pair({
-            buySideToken,
-            sellSideToken,
-            buyOrdersRoot,
-            sellOrdersRoot,
-        })
+        return Poseidon.hash([
+            ...this.baseCurrencyAddress.toFields(),
+            ...this.quoteCurrencyAddress.toFields(),
+            this.buyOrdersRoot,
+            this.sellOrdersRoot,
+        ])
     }
 }
 
+type OrderObject = {
+    maker: PublicKey
+    amount: UInt64
+    price: UInt64
+}
 
 class Order extends Struct({
-    maker: Field,
+    maker: PublicKey,
     amount: UInt64,
     price: UInt64,
-}) {
+} satisfies StructLayout<OrderObject>) {
     hash(): Field {
-        return Poseidon.hash([this.maker, ...this.amount.toFields(), ...this.price.toFields()])
-    }
-
-    static new(maker: PublicKey, amount: UInt64, price: UInt64): Order {
-        return new Order({
-            maker: Poseidon.hash(maker.toFields()),
-            amount,
-            price,
-        })
+        return Poseidon.hash([...this.maker.toFields(), ...this.amount.toFields(), ...this.price.toFields()])
     }
 }
-
 
 /**
  * An order book decentralized exchange that allows trading of tokens.
@@ -70,7 +101,7 @@ export class Exchange extends SmartContract {
     /**
      * Root of the merkle tree that stores all the pairs.
      */
-    @state(Field) pairsRoot = State<Field>()
+    @state(Field) root = State<Field>()
 
     /**
      * Hash of the public key of the authority.
@@ -91,95 +122,285 @@ export class Exchange extends SmartContract {
 
     init() {
         super.init()
-        const PAIRS_MERKLE_TREE_HEIGHT = 10
-        const mt = new MerkleTree(PAIRS_MERKLE_TREE_HEIGHT)
-        this.pairsRoot.set(mt.getRoot())
+        this.root.set(new MerkleTree(PAIRS_HEIGHT).getRoot())
     }
 
-    @method createPair(tokenOne: PublicKey, tokenTwo: PublicKey, pairWitness: MerkleWitnessForPairsTree, authoritySignature: Signature) {
-        // require that pair doesn't exist on given leaf node
-        this.pairsRoot.getAndAssertEquals().assertEquals(pairWitness.calculateRoot(FIELD_ZERO))
+    /**
+     * Creates a new pair.
+     */
+    @method createPair(
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        baseCurrencyAddress.equals(quoteCurrencyAddress).assertFalse(Error.SameCurrencies)
 
-        // require that signature is valid
-        authoritySignature.verify(this.authority.get(), [...tokenOne.toFields(), ...tokenTwo.toFields(), pairWitness.calculateIndex()]).assertTrue()
+        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(FIELD_ZERO), Error.PairAlreadyExists)
 
-        // create a pair
-        const pair = Pair.new(tokenOne, tokenTwo, ROOT_OF_EMPTY_ORDERS_MERKLE_TREE, ROOT_OF_EMPTY_ORDERS_MERKLE_TREE)
+        authoritySignature
+            .verify(this.authority.get(), [
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                pairsWitness.calculateIndex(),
+            ])
+            .assertTrue(Error.InvalidSignature)
 
-        // create the new root
-        const newPairsRoot = pairWitness.calculateRoot(pair.hash())
+        const emptyRoot = new MerkleTree(ORDERS_HEIGHT).getRoot()
 
-        // update the on-chain pairs root
-        this.pairsRoot.set(newPairsRoot)
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot: emptyRoot,
+            sellOrdersRoot: emptyRoot,
+        })
+
+        const newPairsRoot = pairsWitness.calculateRoot(pair.hash())
+
+        this.root.set(newPairsRoot)
     }
 
-    @method placeBuyOrder(amount: UInt64, price: UInt64, sellToken: PublicKey, buyToken: PublicKey, buyOrdersRoot: Field, sellOrdersRoot: Field, pairWitness: MerkleWitnessForPairsTree, buyOrdersWitness: MerkleWitnessForOrdersTree, authoritySignature: Signature) {
-        // require that signature is valid
-        authoritySignature.verify(this.authority.get(), [...amount.toFields(), ...price.toFields(), ...sellToken.toFields(), ...buyToken.toFields(), buyOrdersRoot, sellOrdersRoot, ...pairWitness.toFields(), ...buyOrdersWitness.toFields()]).assertTrue()
+    /**
+     * Places a BUY order.
+     */
+    @method placeBuyOrder(
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersWitness: OrdersWitness,
+        sellOrdersRoot: Field,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const buyOrdersRoot = buyOrdersWitness.calculateRoot(FIELD_ZERO)
 
-        // construct the pair
-        const pair = Pair.new(buyToken, sellToken, buyOrdersRoot, sellOrdersRoot)
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot,
+        })
 
-        // require that the constructed pair is correct
-        this.pairsRoot.getAndAssertEquals().assertEquals(pairWitness.calculateRoot(pair.hash()))
+        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
 
-        // require that the order doesn't exist
-        pair.buyOrdersRoot.assertEquals(buyOrdersWitness.calculateRoot(FIELD_ZERO))
+        authoritySignature
+            .verify(this.authority.get(), [
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersWitness.toFields(),
+                ...sellOrdersRoot.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Error.InvalidSignature)
 
-        const sellTokenInstance = new Token(sellToken)
+        const quoteCurrency = new Token(quoteCurrencyAddress)
 
-        // todo: learn that if it fails when the transfer is not successful
-        sellTokenInstance.sendTokens(this.sender, this.address, amount.mul(price))
+        //todo: make sure this fails when there is a problem
+        quoteCurrency.sendTokens(this.sender, this.address, amount.mul(price))
 
-        // create a buy order
-        const buyOrder = Order.new(this.sender, amount, price)
+        const order = new Order({
+            maker: this.sender,
+            amount,
+            price,
+        })
 
-        // create a new root for the buy orders of the pair
-        const newBuyOrdersRoot = buyOrdersWitness.calculateRoot(buyOrder.hash())
+        const newBuyOrdersRoot = buyOrdersWitness.calculateRoot(order.hash())
 
-        // construct a new pair using the new buy orders root
-        const newPair = Pair.new(buyToken, sellToken, newBuyOrdersRoot, sellOrdersRoot)
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot: newBuyOrdersRoot,
+            sellOrdersRoot,
+        })
 
-        // construct a new pairs root using the updated pair
-        const newPairsRoot = pairWitness.calculateRoot(newPair.hash())
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
 
-        // update the on-chain pairs root
-        this.pairsRoot.set(newPairsRoot)
+        this.root.set(newPairsRoot)
     }
 
-    @method placeSellOrder(amount: UInt64, price: UInt64, sellToken: PublicKey, buyToken: PublicKey, buyOrdersRoot: Field, sellOrdersRoot: Field, pairWitness: MerkleWitnessForPairsTree, sellOrdersWitness: MerkleWitnessForOrdersTree, authoritySignature: Signature) {
-        // require that signature is valid
-        authoritySignature.verify(this.authority.get(), [...amount.toFields(), ...price.toFields(), ...sellToken.toFields(), ...buyToken.toFields(), buyOrdersRoot, sellOrdersRoot, ...pairWitness.toFields(), ...sellOrdersWitness.toFields()]).assertTrue()
+    /**
+     * Places a SELL order.
+     */
+    @method placeSellOrder(
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersRoot: Field,
+        sellOrdersWitness: OrdersWitness,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const sellOrdersRoot = sellOrdersWitness.calculateRoot(FIELD_ZERO)
 
-        // construct the pair
-        const pair = Pair.new(buyToken, sellToken, buyOrdersRoot, sellOrdersRoot)
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot,
+        })
 
-        // require that the constructed pair is correct
-        this.pairsRoot.getAndAssertEquals().assertEquals(pairWitness.calculateRoot(pair.hash()))
+        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
 
-        // require that the order doesn't exist
-        pair.sellOrdersRoot.assertEquals(sellOrdersWitness.calculateRoot(FIELD_ZERO))
+        authoritySignature
+            .verify(this.authority.get(), [
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersRoot.toFields(),
+                ...sellOrdersWitness.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Error.InvalidSignature)
 
-        const sellTokenInstance = new Token(sellToken)
+        const baseCurrency = new Token(baseCurrencyAddress)
 
-        // todo: learn that if it fails when the transfer is not successful
-        sellTokenInstance.sendTokens(this.sender, this.address, amount.mul(price))
+        //todo: make sure this fails when there is a problem
+        baseCurrency.sendTokens(this.sender, this.address, amount.mul(price))
 
-        // create a sell order
-        const sellOrder = Order.new(this.sender, amount, price)
+        const order = new Order({
+            maker: this.sender,
+            amount,
+            price,
+        })
 
-        // create a new root for the sell orders of the pair
-        const newSellOrdersRoot = sellOrdersWitness.calculateRoot(sellOrder.hash())
+        const newSellOrdersRoot = sellOrdersWitness.calculateRoot(order.hash())
 
-        // construct a new pair using the new sell orders root
-        const newPair = Pair.new(buyToken, sellToken, buyOrdersRoot, newSellOrdersRoot)
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot: newSellOrdersRoot,
+        })
 
-        // construct a new pairs root using the updated pair
-        const newPairsRoot = pairWitness.calculateRoot(newPair.hash())
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
 
-        // update the on-chain pairs root
-        this.pairsRoot.set(newPairsRoot)
+        this.root.set(newPairsRoot)
+    }
+
+    /**
+     * Cancels a BUY order.
+     */
+    @method cancelBuyOrder(
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersWitness: OrdersWitness,
+        sellOrdersRoot: Field,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const order = new Order({
+            maker: this.sender,
+            amount,
+            price,
+        })
+
+        const buyOrdersRoot = buyOrdersWitness.calculateRoot(order.hash())
+
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot: buyOrdersRoot,
+            sellOrdersRoot,
+        })
+
+        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+
+        authoritySignature
+            .verify(this.authority.get(), [
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersWitness.toFields(),
+                ...sellOrdersRoot.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Error.InvalidSignature)
+
+        const quoteCurrency = new Token(quoteCurrencyAddress)
+
+        //todo: make sure this fails when there is a problem
+        quoteCurrency.sendTokens(this.address, this.sender, amount.mul(price))
+
+        const newBuyOrdersRoot = buyOrdersWitness.calculateRoot(FIELD_ZERO)
+
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot: newBuyOrdersRoot,
+            sellOrdersRoot,
+        })
+
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
+
+        this.root.set(newPairsRoot)
+    }
+
+    /**
+     * Cancels a SELL order.
+     */
+    @method cancelSellOrder(
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersRoot: Field,
+        sellOrdersWitness: OrdersWitness,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const order = new Order({
+            maker: this.sender,
+            amount,
+            price,
+        })
+
+        const sellOrdersRoot = sellOrdersWitness.calculateRoot(order.hash())
+
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot: sellOrdersRoot,
+        })
+
+        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+
+        authoritySignature
+            .verify(this.authority.get(), [
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersRoot.toFields(),
+                ...sellOrdersWitness.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Error.InvalidSignature)
+
+        const baseCurrency = new Token(baseCurrencyAddress)
+
+        //todo: make sure this fails when there is a problem
+        baseCurrency.sendTokens(this.address, this.sender, amount.mul(price))
+
+        const newSellOrdersRoot = sellOrdersWitness.calculateRoot(FIELD_ZERO)
+
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot: newSellOrdersRoot,
+        })
+
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
+
+        this.root.set(newPairsRoot)
     }
 }
-
-
