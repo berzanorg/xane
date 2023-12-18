@@ -1,3 +1,3 @@
 import { Token } from './Token.js'
-import { Exchange } from './Exchange.js'
-export { Token, Exchange }
+import { Exchange, AUTHORITY_PRIVATE_KEY } from './Exchange.js'
+export { Token, Exchange, AUTHORITY_PRIVATE_KEY }

@@ -1,4 +1,5 @@
-import { Token } from './Token'
+import { Witness } from 'o1js/dist/node/lib/merkle_tree.js'
+import { Token } from './Token.js'
 import {
     DeployArgs,
     Field,
@@ -6,6 +7,7 @@ import {
     MerkleWitness,
     Permissions,
     Poseidon,
+    PrivateKey,
     Provable,
     PublicKey,
     Signature,
@@ -16,6 +18,10 @@ import {
     method,
     state,
 } from 'o1js'
+
+// These are only for testing purposes.
+export const AUTHORITY_PRIVATE_KEY = PrivateKey.fromBase58('EKEvp6bPR2D9BCQYPmKgTC9swtxok5JKQvsovNeffV7487SjkqPu')
+export const AUTHORITY_PUBLIC_KEY = PublicKey.fromBase58('B62qqaK8H6CXjtFXMeHFk6WQxW7ynYiRMjCKKPCQimZCGucMTCzTj1i')
 
 /**
  * Creates the type of the object specifiying the layout of `Struct` from given type.
@@ -42,20 +48,32 @@ type StructLayout<T> = {
 
 const FIELD_ZERO = Field.from(0)
 
-const ORDERS_HEIGHT = 10
-const PAIRS_HEIGHT = 10
+export const ORDERS_HEIGHT = 10
+export const PAIRS_HEIGHT = 10
 
-class OrdersWitness extends MerkleWitness(ORDERS_HEIGHT) {}
-class PairsWitness extends MerkleWitness(PAIRS_HEIGHT) {}
+export class OrdersWitness extends MerkleWitness(ORDERS_HEIGHT) {}
+export class PairsWitness extends MerkleWitness(PAIRS_HEIGHT) {}
 
-enum Error {
+export enum Errors {
     SameCurrencies = "A pair can't have the same currencies.",
     PairAlreadyExists = 'The pair already exists.',
     MistakenPair = 'The pair provided is mistaken.',
     InvalidSignature = 'The authority signature is not valid.',
 }
 
-type PairObject = {
+export function getErrorMessage(error: any): string {
+    const msg: string | undefined = error?.toString().split('Error: ').at(1)?.split('\n')[0]
+
+    if (typeof msg === 'undefined') {
+        console.error("Exchange conract's error message is unknown:")
+        console.error(error)
+        throw new Error("`getErrorMessage` function didn't work properly")
+    } else {
+        return msg
+    }
+}
+
+export type PairObject = {
     baseCurrencyAddress: PublicKey
     quoteCurrencyAddress: PublicKey
     buyOrdersRoot: Field
@@ -78,7 +96,7 @@ class Pair extends Struct({
     }
 }
 
-type OrderObject = {
+export type OrderObject = {
     maker: PublicKey
     amount: UInt64
     price: UInt64
@@ -123,6 +141,7 @@ export class Exchange extends SmartContract {
     init() {
         super.init()
         this.root.set(new MerkleTree(PAIRS_HEIGHT).getRoot())
+        this.authority.set(AUTHORITY_PUBLIC_KEY)
     }
 
     /**
@@ -134,17 +153,18 @@ export class Exchange extends SmartContract {
         pairsWitness: PairsWitness,
         authoritySignature: Signature
     ) {
-        baseCurrencyAddress.equals(quoteCurrencyAddress).assertFalse(Error.SameCurrencies)
+        baseCurrencyAddress.equals(quoteCurrencyAddress).assertFalse(Errors.SameCurrencies)
 
-        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(FIELD_ZERO), Error.PairAlreadyExists)
+        const pairsRoot = pairsWitness.calculateRoot(FIELD_ZERO)
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.PairAlreadyExists)
 
         authoritySignature
-            .verify(this.authority.get(), [
+            .verify(this.authority.getAndAssertEquals(), [
                 ...baseCurrencyAddress.toFields(),
                 ...quoteCurrencyAddress.toFields(),
                 pairsWitness.calculateIndex(),
             ])
-            .assertTrue(Error.InvalidSignature)
+            .assertTrue(Errors.InvalidSignature)
 
         const emptyRoot = new MerkleTree(ORDERS_HEIGHT).getRoot()
 
@@ -182,10 +202,11 @@ export class Exchange extends SmartContract {
             sellOrdersRoot,
         })
 
-        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
 
         authoritySignature
-            .verify(this.authority.get(), [
+            .verify(this.authority.getAndAssertEquals(), [
                 ...amount.toFields(),
                 ...price.toFields(),
                 ...baseCurrencyAddress.toFields(),
@@ -194,12 +215,12 @@ export class Exchange extends SmartContract {
                 ...sellOrdersRoot.toFields(),
                 ...pairsWitness.toFields(),
             ])
-            .assertTrue(Error.InvalidSignature)
+            .assertTrue(Errors.InvalidSignature)
 
         const quoteCurrency = new Token(quoteCurrencyAddress)
 
-        //todo: make sure this fails when there is a problem
-        quoteCurrency.sendTokens(this.sender, this.address, amount.mul(price))
+        // this fails inside when there is a problem
+        quoteCurrency.transfer(this.sender, this.address, amount.mul(price))
 
         const order = new Order({
             maker: this.sender,
@@ -243,10 +264,11 @@ export class Exchange extends SmartContract {
             sellOrdersRoot,
         })
 
-        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
 
         authoritySignature
-            .verify(this.authority.get(), [
+            .verify(this.authority.getAndAssertEquals(), [
                 ...amount.toFields(),
                 ...price.toFields(),
                 ...baseCurrencyAddress.toFields(),
@@ -255,12 +277,12 @@ export class Exchange extends SmartContract {
                 ...sellOrdersWitness.toFields(),
                 ...pairsWitness.toFields(),
             ])
-            .assertTrue(Error.InvalidSignature)
+            .assertTrue(Errors.InvalidSignature)
 
         const baseCurrency = new Token(baseCurrencyAddress)
 
-        //todo: make sure this fails when there is a problem
-        baseCurrency.sendTokens(this.sender, this.address, amount.mul(price))
+        // this fails inside when there is a problem
+        baseCurrency.transfer(this.sender, this.address, amount)
 
         const order = new Order({
             maker: this.sender,
@@ -310,10 +332,11 @@ export class Exchange extends SmartContract {
             sellOrdersRoot,
         })
 
-        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
 
         authoritySignature
-            .verify(this.authority.get(), [
+            .verify(this.authority.getAndAssertEquals(), [
                 ...amount.toFields(),
                 ...price.toFields(),
                 ...baseCurrencyAddress.toFields(),
@@ -322,12 +345,12 @@ export class Exchange extends SmartContract {
                 ...sellOrdersRoot.toFields(),
                 ...pairsWitness.toFields(),
             ])
-            .assertTrue(Error.InvalidSignature)
+            .assertTrue(Errors.InvalidSignature)
 
         const quoteCurrency = new Token(quoteCurrencyAddress)
 
-        //todo: make sure this fails when there is a problem
-        quoteCurrency.sendTokens(this.address, this.sender, amount.mul(price))
+        // this fails inside when there is a problem
+        quoteCurrency.transfer(this.address, this.sender, amount.mul(price))
 
         const newBuyOrdersRoot = buyOrdersWitness.calculateRoot(FIELD_ZERO)
 
@@ -371,10 +394,11 @@ export class Exchange extends SmartContract {
             sellOrdersRoot: sellOrdersRoot,
         })
 
-        this.root.getAndAssertEquals().assertEquals(pairsWitness.calculateRoot(pair.hash()), Error.MistakenPair)
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
 
         authoritySignature
-            .verify(this.authority.get(), [
+            .verify(this.authority.getAndAssertEquals(), [
                 ...amount.toFields(),
                 ...price.toFields(),
                 ...baseCurrencyAddress.toFields(),
@@ -383,12 +407,146 @@ export class Exchange extends SmartContract {
                 ...sellOrdersWitness.toFields(),
                 ...pairsWitness.toFields(),
             ])
-            .assertTrue(Error.InvalidSignature)
+            .assertTrue(Errors.InvalidSignature)
 
         const baseCurrency = new Token(baseCurrencyAddress)
 
-        //todo: make sure this fails when there is a problem
-        baseCurrency.sendTokens(this.address, this.sender, amount.mul(price))
+        // this fails inside when there is a problem
+        baseCurrency.transfer(this.address, this.sender, amount)
+
+        const newSellOrdersRoot = sellOrdersWitness.calculateRoot(FIELD_ZERO)
+
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot: newSellOrdersRoot,
+        })
+
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
+
+        this.root.set(newPairsRoot)
+    }
+
+    /**
+     * Executes given BUY order.
+     */
+    @method executeBuyOrder(
+        maker: PublicKey,
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersWitness: OrdersWitness,
+        sellOrdersRoot: Field,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const order = new Order({
+            amount,
+            price,
+            maker,
+        })
+
+        const buyOrdersRoot = buyOrdersWitness.calculateRoot(order.hash())
+
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot,
+        })
+
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
+
+        authoritySignature
+            .verify(this.authority.getAndAssertEquals(), [
+                ...maker.toFields(),
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersWitness.toFields(),
+                ...sellOrdersRoot.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Errors.InvalidSignature)
+
+        const baseCurrency = new Token(baseCurrencyAddress)
+        const quoteCurrency = new Token(quoteCurrencyAddress)
+
+        // this fails inside when there is a problem
+        baseCurrency.transfer(this.sender, maker, amount)
+        // this fails inside when there is a problem
+        quoteCurrency.transfer(this.address, this.sender, amount.mul(price))
+
+        const newBuyOrdersRoot = buyOrdersWitness.calculateRoot(FIELD_ZERO)
+
+        const newPair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot: newBuyOrdersRoot,
+            sellOrdersRoot,
+        })
+
+        const newPairsRoot = pairsWitness.calculateRoot(newPair.hash())
+
+        this.root.set(newPairsRoot)
+    }
+
+    /**
+     * Executes given SELL order.
+     */
+    @method executeSellOrder(
+        maker: PublicKey,
+        amount: UInt64,
+        price: UInt64,
+        baseCurrencyAddress: PublicKey,
+        quoteCurrencyAddress: PublicKey,
+        buyOrdersRoot: Field,
+        sellOrdersWitness: OrdersWitness,
+        pairsWitness: PairsWitness,
+        authoritySignature: Signature
+    ) {
+        const order = new Order({
+            amount,
+            price,
+            maker,
+        })
+
+        const sellOrdersRoot = sellOrdersWitness.calculateRoot(order.hash())
+
+        const pair = new Pair({
+            baseCurrencyAddress,
+            quoteCurrencyAddress,
+            buyOrdersRoot,
+            sellOrdersRoot,
+        })
+
+        const pairsRoot = pairsWitness.calculateRoot(pair.hash())
+        this.root.getAndAssertEquals().assertEquals(pairsRoot, Errors.MistakenPair)
+
+        authoritySignature
+            .verify(this.authority.getAndAssertEquals(), [
+                ...maker.toFields(),
+                ...amount.toFields(),
+                ...price.toFields(),
+                ...baseCurrencyAddress.toFields(),
+                ...quoteCurrencyAddress.toFields(),
+                ...buyOrdersRoot.toFields(),
+                ...sellOrdersWitness.toFields(),
+                ...pairsWitness.toFields(),
+            ])
+            .assertTrue(Errors.InvalidSignature)
+
+        const quoteCurrency = new Token(quoteCurrencyAddress)
+        const baseCurrency = new Token(baseCurrencyAddress)
+
+        // this fails inside when there is a problem
+        quoteCurrency.transfer(this.sender, maker, amount.mul(price))
+        // this fails inside when there is a problem
+        baseCurrency.transfer(this.address, this.sender, amount)
 
         const newSellOrdersRoot = sellOrdersWitness.calculateRoot(FIELD_ZERO)
 
