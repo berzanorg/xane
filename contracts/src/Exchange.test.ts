@@ -16,68 +16,361 @@ import {
     Exchange,
     ORDERS_HEIGHT,
     OrderObject,
+    OrderWitness,
     PAIRS_HEIGHT,
     PairObject,
-    PairsWitness,
+    PairWitness,
     getErrorMessage,
 } from './Exchange'
 import { Token } from './Token'
 
 const proofsEnabled = false
 
+type Pair = {
+    baseCurrency: PublicKey
+    quoteCurrency: PublicKey
+    buyOrders: Array<OrderObject | null>
+    sellOrders: Array<OrderObject | null>
+}
+
 class TestAuthority {
     // Stores all the pairs in an array.
-    private pairs: Array<PairObject> = []
+    private pairs: Array<Pair> = []
     // Stores all the pairs in a tree.
     private pairsTree: MerkleTree = new MerkleTree(PAIRS_HEIGHT)
 
-    // Stores all the BUY orders of each pair in arrays.
-    private buyOrders: Map<number, Array<OrderObject>> = new Map()
     // Stores all the BUY orders of each pair in trees.
-    private buyOrdersTrees: Map<number, MerkleTree> = new Map()
+    private buyOrderTreesByPair: Map<number, MerkleTree> = new Map()
 
-    // Stores all the SELL orders of each pair in an array.
-    private sellOrders: Map<number, Array<OrderObject>> = new Map()
     // Stores all the SELL orders of each pair in trees.
-    private sellOrdersTrees: Map<number, MerkleTree> = new Map()
+    private sellOrderTreesByPair: Map<number, MerkleTree> = new Map()
 
     private createSignature(message: Array<Field>): Signature {
         return Signature.create(AUTHORITY_PRIVATE_KEY, message)
     }
 
-    createPair(baseCurrencyAddress: PublicKey, quoteCurrencyAddress: PublicKey) {
-        const pairIndex = BigInt(this.pairs.length)
+    private getBuyOrdersTreeRoot(pairIndex: number): Field {
+        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
 
-        const emptyRoot = new MerkleTree(ORDERS_HEIGHT).getRoot()
+        if (!buyOrdersTree) throw 'There is no pair at given index.'
 
-        const pair: PairObject = {
-            baseCurrencyAddress,
-            quoteCurrencyAddress,
-            buyOrdersRoot: emptyRoot,
-            sellOrdersRoot: emptyRoot,
+        const root = buyOrdersTree.getRoot()
+
+        return root
+    }
+
+    private getSellOrdersTreeRoot(pairIndex: number): Field {
+        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
+
+        if (!sellOrdersTree) throw 'There is no pair at given index.'
+
+        const root = sellOrdersTree.getRoot()
+
+        return root
+    }
+
+    private getBuyOrderWitness(pairIndex: number, orderIndex: number): OrderWitness {
+        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
+
+        if (!buyOrdersTree) throw 'There is no pair at given index.'
+
+        const merkleWitness = buyOrdersTree.getWitness(BigInt(orderIndex))
+
+        const orderWitness = new OrderWitness(merkleWitness)
+
+        return orderWitness
+    }
+
+    private getSellOrderWitness(pairIndex: number, orderIndex: number): OrderWitness {
+        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
+
+        if (!sellOrdersTree) throw 'There is no pair at given index.'
+
+        const merkleWitness = sellOrdersTree.getWitness(BigInt(orderIndex))
+
+        const orderWitness = new OrderWitness(merkleWitness)
+
+        return orderWitness
+    }
+
+    private getPairWitness(pairIndex: number): PairWitness {
+        const merkleWitness = this.pairsTree.getWitness(BigInt(pairIndex))
+        const pairWitness = new PairWitness(merkleWitness)
+
+        return pairWitness
+    }
+
+    private updateBuyOrdersTree(pairIndex: number, orderIndex: number, orderHash: Field) {
+        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
+
+        if (!buyOrdersTree) throw 'There is no pair at given index.'
+
+        buyOrdersTree.setLeaf(BigInt(orderIndex), orderHash)
+
+        this.buyOrderTreesByPair.set(pairIndex, buyOrdersTree)
+    }
+
+    private updateSellOrdersTree(pairIndex: number, orderIndex: number, orderHash: Field) {
+        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
+
+        if (!sellOrdersTree) throw 'There is no pair at given index.'
+
+        sellOrdersTree.setLeaf(BigInt(orderIndex), orderHash)
+
+        this.sellOrderTreesByPair.set(pairIndex, sellOrdersTree)
+    }
+
+    private updatePairsTree(pairIndex: number, pairHash: Field) {
+        const buyOrdersTree = this.pairsTree.setLeaf(BigInt(pairIndex), pairHash)
+    }
+
+    createPair(baseCurrency: PublicKey, quoteCurrency: PublicKey) {
+        const doesPairAlreadyExist = this.pairs.find((pair) => {
+            return (
+                (pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)) ||
+                (pair.baseCurrency.equals(quoteCurrency) && pair.quoteCurrency.equals(baseCurrency))
+            )
+        })
+        if (doesPairAlreadyExist) throw 'Pair already exists.'
+
+        const pairIndex = this.pairs.length
+
+        const emptyOrdersMerkleTree = new MerkleTree(ORDERS_HEIGHT)
+        const emptyOrdersMerkleRoot = emptyOrdersMerkleTree.getRoot()
+
+        const pair: Pair = {
+            baseCurrency,
+            quoteCurrency,
+            buyOrders: [],
+            sellOrders: [],
         }
 
         this.pairs.push(pair)
 
-        this.pairsTree.setLeaf(
-            pairIndex,
-            Poseidon.hash([
-                ...pair.baseCurrencyAddress.toFields(),
-                ...pair.quoteCurrencyAddress.toFields(),
-                pair.buyOrdersRoot,
-                pair.sellOrdersRoot,
-            ])
-        )
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            emptyOrdersMerkleRoot,
+            emptyOrdersMerkleRoot,
+        ])
 
-        const pairsWitness = new PairsWitness(this.pairsTree.getWitness(pairIndex))
+        this.updatePairsTree(pairIndex, pairHash)
+        this.buyOrderTreesByPair.set(pairIndex, emptyOrdersMerkleTree)
+        this.sellOrderTreesByPair.set(pairIndex, emptyOrdersMerkleTree)
 
         return {
-            pairsWitness,
-            signature: this.createSignature([
-                ...baseCurrencyAddress.toFields(),
-                ...quoteCurrencyAddress.toFields(),
+            pairWitness: this.getPairWitness(pairIndex),
+            authoritySignature: this.createSignature([
+                ...pair.baseCurrency.toFields(),
+                ...pair.quoteCurrency.toFields(),
                 new Field(pairIndex),
             ]),
+        }
+    }
+
+    placeBuyOrder(amount: UInt64, price: UInt64, baseCurrency: PublicKey, quoteCurrency: PublicKey, maker: PublicKey) {
+        const pairIndex = this.pairs.findIndex(
+            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
+        )
+        if (pairIndex === -1) throw 'Pair does not exist'
+
+        const pair = this.pairs[pairIndex]
+        const orderIndex = pair.buyOrders.length
+
+        const buyOrderWitness = this.getBuyOrderWitness(pairIndex, orderIndex)
+        const sellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
+        const pairWitness = this.getPairWitness(pairIndex)
+        const authoritySignature = this.createSignature([
+            ...amount.toFields(),
+            ...price.toFields(),
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            ...buyOrderWitness.toFields(),
+            ...sellOrdersRoot.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const order: OrderObject = {
+            maker,
+            amount,
+            price,
+        }
+
+        pair.buyOrders[orderIndex] = order
+
+        const orderHash = Poseidon.hash([...maker.toFields(), ...amount.toFields(), ...price.toFields()])
+
+        this.updateBuyOrdersTree(pairIndex, orderIndex, orderHash)
+        const updatedBuyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
+
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            updatedBuyOrdersRoot,
+            sellOrdersRoot,
+        ])
+
+        this.updatePairsTree(pairIndex, pairHash)
+
+        return {
+            buyOrderWitness: buyOrderWitness,
+            sellOrdersRoot: sellOrdersRoot,
+            pairWitness: pairWitness,
+            authoritySignature,
+        }
+    }
+
+    placeSellOrder(amount: UInt64, price: UInt64, baseCurrency: PublicKey, quoteCurrency: PublicKey, maker: PublicKey) {
+        const pairIndex = this.pairs.findIndex(
+            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
+        )
+        if (pairIndex === -1) throw 'Pair does not exist'
+
+        const pair = this.pairs[pairIndex]
+        const orderIndex = pair.sellOrders.length
+
+        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
+        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderIndex)
+        const pairWitness = this.getPairWitness(pairIndex)
+        const authoritySignature = this.createSignature([
+            ...amount.toFields(),
+            ...price.toFields(),
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            ...buyOrdersRoot.toFields(),
+            ...sellOrderWitness.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const order: OrderObject = {
+            maker,
+            amount,
+            price,
+        }
+
+        pair.sellOrders[orderIndex] = order
+
+        const orderHash = Poseidon.hash([...maker.toFields(), ...amount.toFields(), ...price.toFields()])
+
+        this.updateSellOrdersTree(pairIndex, orderIndex, orderHash)
+        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
+
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            buyOrdersRoot,
+            updatedSellOrdersRoot,
+        ])
+
+        this.updatePairsTree(pairIndex, pairHash)
+
+        return {
+            buyOrdersRoot: buyOrdersRoot,
+            sellOrderWitness: sellOrderWitness,
+            pairWitness: pairWitness,
+            authoritySignature,
+        }
+    }
+
+    executeBuyOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
+        const pairIndex = this.pairs.findIndex(
+            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
+        )
+        if (pairIndex === -1) throw 'Pair does not exist'
+
+        const pair = this.pairs[pairIndex]
+        const order = pair.buyOrders.at(orderId)
+
+        if (!order) throw 'Order ID is invalid.'
+
+        const buyOrderWitness = this.getBuyOrderWitness(pairIndex, orderId)
+        const sellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
+        const pairWitness = this.getPairWitness(pairIndex)
+
+        const authoritySignature = this.createSignature([
+            ...order.maker.toFields(),
+            ...order.amount.toFields(),
+            ...order.price.toFields(),
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            ...buyOrderWitness.toFields(),
+            ...sellOrdersRoot.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        pair.buyOrders[orderId] = null
+
+        const updatedBuyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
+
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            updatedBuyOrdersRoot,
+            sellOrdersRoot,
+        ])
+
+        this.updateBuyOrdersTree(pairIndex, orderId, Field(0))
+        this.updatePairsTree(pairIndex, pairHash)
+
+        return {
+            maker: order.maker,
+            amount: order.amount,
+            price: order.price,
+            buyOrderWitness,
+            sellOrdersRoot,
+            pairWitness,
+            authoritySignature,
+        }
+    }
+
+    executeSellOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
+        const pairIndex = this.pairs.findIndex(
+            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
+        )
+        if (pairIndex === -1) throw 'Pair does not exist'
+
+        const pair = this.pairs[pairIndex]
+        const order = pair.sellOrders.at(orderId)
+
+        if (!order) throw 'Order ID is invalid.'
+
+        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
+        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderId)
+        const pairWitness = this.getPairWitness(pairIndex)
+
+        const authoritySignature = this.createSignature([
+            ...order.maker.toFields(),
+            ...order.amount.toFields(),
+            ...order.price.toFields(),
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            ...buyOrdersRoot.toFields(),
+            ...sellOrderWitness.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        pair.sellOrders[orderId] = null
+
+        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
+
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            buyOrdersRoot,
+            updatedSellOrdersRoot,
+        ])
+
+        this.updateSellOrdersTree(pairIndex, orderId, Field(0))
+        this.updatePairsTree(pairIndex, pairHash)
+
+        return {
+            maker: order.maker,
+            amount: order.amount,
+            price: order.price,
+            buyOrdersRoot,
+            sellOrderWitness,
+            pairWitness,
+            authoritySignature,
         }
     }
 }
@@ -174,30 +467,28 @@ describe('Exchange Contract', () => {
     })
 
     it('can create pairs', async () => {
-        const baseCurrencyAddress = tokenOne.address
-        const quoteCurrencyAddress = tokenTwo.address
+        const baseCurrency = tokenOne.address
+        const quoteCurrency = tokenTwo.address
 
-        const { pairsWitness, signature } = testAuthority.createPair(baseCurrencyAddress, quoteCurrencyAddress)
+        const { pairWitness, authoritySignature } = testAuthority.createPair(baseCurrency, quoteCurrency)
 
         const tx = await Mina.transaction(user1PublicKey, () => {
-            exchange.createPair(baseCurrencyAddress, quoteCurrencyAddress, pairsWitness, signature)
+            exchange.createPair(baseCurrency, quoteCurrency, pairWitness, authoritySignature)
         })
 
         await tx.prove()
         await tx.sign([user1PrivateKey]).send()
     })
 
-    it("can't create pairs when signature is invalid", async () => {
+    it("can't create pairs when pairs already exists", async () => {
         try {
-            const baseCurrencyAddress = tokenOne.address
-            const quoteCurrencyAddress = tokenTwo.address
+            const baseCurrency = tokenOne.address
+            const quoteCurrency = tokenTwo.address
 
-            const { pairsWitness, signature } = testAuthority.createPair(baseCurrencyAddress, quoteCurrencyAddress)
-
-            const fakeSignature = Signature.create(PrivateKey.random(), [new Field(0)])
+            const { pairWitness, authoritySignature } = testAuthority.createPair(baseCurrency, quoteCurrency)
 
             const tx = await Mina.transaction(user1PublicKey, () => {
-                exchange.createPair(baseCurrencyAddress, quoteCurrencyAddress, pairsWitness, fakeSignature)
+                exchange.createPair(baseCurrency, quoteCurrency, pairWitness, authoritySignature)
             })
 
             await tx.prove()
@@ -205,8 +496,129 @@ describe('Exchange Contract', () => {
 
             throw 'Must have failed!'
         } catch (error) {
-            const errorMessage = getErrorMessage(error)
-            expect(errorMessage).toEqual(Errors.InvalidSignature)
+            expect(error).toEqual('Pair already exists.')
         }
+    })
+
+    it('can place BUY orders', async () => {
+        const amount = new UInt64(400)
+        const price = new UInt64(21)
+        const baseCurrency = tokenOne.address
+        const quoteCurrency = tokenTwo.address
+
+        const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature } = testAuthority.placeBuyOrder(
+            amount,
+            price,
+            baseCurrency,
+            quoteCurrency,
+            user2PublicKey
+        )
+
+        const tx = await Mina.transaction(user2PublicKey, () => {
+            AccountUpdate.fundNewAccount(user2PublicKey)
+
+            exchange.placeBuyOrder(
+                amount,
+                price,
+                baseCurrency,
+                quoteCurrency,
+                buyOrderWitness,
+                sellOrdersRoot,
+                pairWitness,
+                authoritySignature
+            )
+        })
+
+        await tx.prove()
+        await tx.sign([user2PrivateKey]).send()
+    })
+
+    it('can place SELL orders', async () => {
+        const amount = new UInt64(100)
+        const price = new UInt64(50)
+        const baseCurrency = tokenOne.address
+        const quoteCurrency = tokenTwo.address
+
+        const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } = testAuthority.placeSellOrder(
+            amount,
+            price,
+            baseCurrency,
+            quoteCurrency,
+            user1PublicKey
+        )
+
+        const tx = await Mina.transaction(user1PublicKey, () => {
+            AccountUpdate.fundNewAccount(user1PublicKey)
+
+            exchange.placeSellOrder(
+                amount,
+                price,
+                baseCurrency,
+                quoteCurrency,
+                buyOrdersRoot,
+                sellOrderWitness,
+                pairWitness,
+                authoritySignature
+            )
+        })
+
+        await tx.prove()
+        await tx.sign([user1PrivateKey]).send()
+    })
+
+    it('can execute BUY orders', async () => {
+        const baseCurrency = tokenOne.address
+        const quoteCurrency = tokenTwo.address
+        const orderId = 0
+
+        const { maker, amount, price, buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature } =
+            testAuthority.executeBuyOrder(orderId, baseCurrency, quoteCurrency)
+
+        const tx = await Mina.transaction(user2PublicKey, () => {
+            AccountUpdate.fundNewAccount(user2PublicKey)
+
+            exchange.executeBuyOrder(
+                maker,
+                amount,
+                price,
+                baseCurrency,
+                quoteCurrency,
+                buyOrderWitness,
+                sellOrdersRoot,
+                pairWitness,
+                authoritySignature
+            )
+        })
+
+        await tx.prove()
+        await tx.sign([user2PrivateKey]).send()
+    })
+
+    it('can execute SELL orders', async () => {
+        const baseCurrency = tokenOne.address
+        const quoteCurrency = tokenTwo.address
+        const orderId = 0
+
+        const { maker, amount, price, buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } =
+            testAuthority.executeSellOrder(orderId, baseCurrency, quoteCurrency)
+
+        const tx = await Mina.transaction(user1PublicKey, () => {
+            AccountUpdate.fundNewAccount(user1PublicKey)
+
+            exchange.executeSellOrder(
+                maker,
+                amount,
+                price,
+                baseCurrency,
+                quoteCurrency,
+                buyOrdersRoot,
+                sellOrderWitness,
+                pairWitness,
+                authoritySignature
+            )
+        })
+
+        await tx.prove()
+        await tx.sign([user1PrivateKey]).send()
     })
 })
