@@ -11,7 +11,7 @@
   "dependencies": {
     "comlink": "^4.4.1",
     "next": "14.0.4",
-    "o1js": "^0.14.*",
+    "o1js": "0.15.1",
     "react": "^18",
     "react-dom": "^18",
     "zustand": "^4.4.7",

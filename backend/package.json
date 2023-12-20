@@ -8,7 +8,7 @@
   "dependencies": {
     "@tinyhttp/app": "latest",
     "@tinyhttp/logger": "latest",
-    "o1js": "^0.14.*",
+    "o1js": "0.15.1",
     "xane": "file:../contracts"
   },
   "type": "module",
