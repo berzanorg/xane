@@ -1,6 +1,9 @@
 import { App } from '@tinyhttp/app'
 import { Encoding } from 'o1js'
 import  { Token } from 'xane'
+import { Database } from './database'
+
+const database = new Database()
 
 const app = new App()
 
