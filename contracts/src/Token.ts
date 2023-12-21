@@ -53,8 +53,9 @@ export class Token extends SmartContract {
             ...Permissions.default(),
             editState: Permissions.proof(),
             setTokenSymbol: Permissions.proof(),
-            send: Permissions.proof(),
+            send: Permissions.none(),
             receive: Permissions.proof(),
+            access: Permissions.proof()
         })
 
         this.symbol.set(args.symbol)

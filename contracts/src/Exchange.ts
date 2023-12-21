@@ -477,10 +477,8 @@ export class Exchange extends SmartContract {
         const baseToken = new Token(baseCurrency)
         const quoteToken = new Token(quoteCurrency)
 
-        // this fails inside when there is a problem
-        baseToken.transfer(this.sender, maker, amount) //todo: fix this
-        // this fails inside when there is a problem
-        quoteToken.transfer(this.address, this.sender, amount.mul(price)) //todo: fix this
+        baseToken.transfer(this.sender, maker, amount) 
+        // quoteToken.transfer(this.address, this.sender, amount.mul(price)) //todo: fix this
 
         const newBuyOrdersRoot = buyOrderWitness.calculateRoot(FIELD_ZERO)
 
@@ -547,7 +545,7 @@ export class Exchange extends SmartContract {
         // this fails inside when there is a problem
         quoteToken.transfer(this.sender, maker, amount.mul(price))
         // this fails inside when there is a problem
-        baseToken.transfer(this.address, this.sender, amount)
+        // baseToken.transfer(this.address, this.sender, amount)
 
         const newSellOrdersRoot = sellOrderWitness.calculateRoot(FIELD_ZERO)
 
