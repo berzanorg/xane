@@ -450,6 +450,55 @@ class TestAuthority {
             authoritySignature,
         }
     }
+
+    cancelSellOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
+        const pairIndex = this.pairs.findIndex(
+            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
+        )
+        if (pairIndex === -1) throw 'Pair does not exist'
+
+        const pair = this.pairs[pairIndex]
+        const order = pair.sellOrders.at(orderId)
+
+        if (!order) throw 'Order ID is invalid.'
+
+        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderId)
+        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
+        const pairWitness = this.getPairWitness(pairIndex)
+
+        const authoritySignature = this.createSignature([
+            ...order.amount.toFields(),
+            ...order.price.toFields(),
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            ...buyOrdersRoot.toFields(),
+            ...sellOrderWitness.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        pair.sellOrders[orderId] = null
+
+        this.updateSellOrdersTree(pairIndex, orderId, Field(0))
+        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
+
+        const pairHash = Poseidon.hash([
+            ...baseCurrency.toFields(),
+            ...quoteCurrency.toFields(),
+            buyOrdersRoot,
+            updatedSellOrdersRoot,
+        ])
+
+        this.updatePairsTree(pairIndex, pairHash)
+
+        return {
+            price: order.price,
+            amount: order.amount,
+            buyOrdersRoot,
+            sellOrderWitness,
+            pairWitness,
+            authoritySignature,
+        }
+    }
 }
 
 const testAuthority = new TestAuthority()
@@ -791,23 +840,23 @@ describe('Exchange Contract', () => {
         const orderId = 1
         const baseCurrency = tokenOne.address
         const quoteCurrency = tokenTwo.address
-        const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature, amount, price } =
-            testAuthority.cancelBuyOrder(orderId, baseCurrency, quoteCurrency)
+        const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature, amount, price } =
+            testAuthority.cancelSellOrder(orderId, baseCurrency, quoteCurrency)
 
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            exchange.cancelBuyOrder(
+        const tx = await Mina.transaction(user1PublicKey, () => {
+            exchange.cancelSellOrder(
                 amount,
                 price,
                 baseCurrency,
                 quoteCurrency,
-                buyOrderWitness,
-                sellOrdersRoot,
+                buyOrdersRoot,
+                sellOrderWitness,
                 pairWitness,
                 authoritySignature
             )
         })
 
         await tx.prove()
-        await tx.sign([user2PrivateKey]).send()
+        await tx.sign([user1PrivateKey]).send()
     })
 })
