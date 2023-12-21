@@ -9,11 +9,20 @@ interface AddOrder {
     maker: string
 }
 
+interface FindEmptyOrderSlot {
+    side: 'BUY' | 'SELL'
+}
+
+interface RemoveOrder {
+    side: 'BUY' | 'SELL'
+    orderIndex: number
+}
+
 export class Pair {
     baseCurrency: string
     quoteCurrency: string
-    buyOrders: Array<Order>
-    sellOrders: Array<Order>
+    buyOrders: Array<Order | undefined>
+    sellOrders: Array<Order | undefined>
     buyOrdersTree: MerkleTree
     sellOrdersTree: MerkleTree
 
@@ -42,17 +51,44 @@ export class Pair {
         return hash
     }
 
+    _FindEmptyOrderSlot(params: FindEmptyOrderSlot): number {
+        const orders = params.side === 'BUY' ? this.buyOrders : this.sellOrders
+
+        for (let i = 0; i < orders.length; i++) {
+            if (orders.at(i) === undefined) {
+                return i
+            }
+        }
+
+        return orders.length
+    }
+
     _AddOrder(params: AddOrder) {
         const order = new Order(params.maker, params.amount, params.price)
 
         switch (params.side) {
             case 'BUY':
-                this.buyOrders.push(order)
-                this.buyOrdersTree.setLeaf(BigInt(this.buyOrders.length), order._GetHash())
+                const emptyBuyOrderIndex = this._FindEmptyOrderSlot({ side: 'BUY' })
+                this.buyOrders[emptyBuyOrderIndex] = order
+                this.buyOrdersTree.setLeaf(BigInt(emptyBuyOrderIndex), order._GetHash())
                 break
             case 'SELL':
-                this.sellOrders.push(order)
-                this.sellOrdersTree.setLeaf(BigInt(this.sellOrders.length), order._GetHash())
+                const emptySellOrderIndex = this._FindEmptyOrderSlot({ side: 'BUY' })
+                this.sellOrders[emptySellOrderIndex] = order
+                this.sellOrdersTree.setLeaf(BigInt(emptySellOrderIndex), order._GetHash())
+                break
+        }
+    }
+
+    _RemoveOrder(params: RemoveOrder) {
+        switch (params.side) {
+            case 'BUY':
+                this.buyOrders[params.orderIndex] = undefined
+                this.buyOrdersTree.setLeaf(BigInt(params.orderIndex), Field(0))
+                break
+            case 'SELL':
+                this.sellOrders[params.orderIndex] = undefined
+                this.sellOrdersTree.setLeaf(BigInt(params.orderIndex), Field(0))
                 break
         }
     }

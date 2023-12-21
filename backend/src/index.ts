@@ -1,9 +1,9 @@
 import { App } from '@tinyhttp/app'
 import { Encoding } from 'o1js'
-import  { Token } from 'xane'
+import { Token } from 'xane'
 import { Database } from './database'
 
-const database = new Database()
+const db = new Database()
 
 const app = new App()
 
@@ -12,7 +12,7 @@ app.get('/', (_req, res) => {
     const message = Encoding.stringFromFields(fields)
 
     console.log(Token)
-    
+
     res.send(message)
 })
 
