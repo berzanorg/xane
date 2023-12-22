@@ -20,7 +20,7 @@ import {
 const proofsEnabled = false
 
 export class Exchange extends SmartContract {
-    @method approveZkapp(amount: UInt64) {
+    @method approveSend(amount: UInt64) {
         this.balance.subInPlace(amount)
     }
 }
@@ -29,18 +29,17 @@ enum TokenError {
     MaxSupplyCannotBeExceeded = 'TOKEN: Max supply cannot be exceeded.',
 }
 
-export class Token extends SmartContract {
+class Token extends SmartContract {
     @state(UInt64) decimals = State<UInt64>()
     @state(UInt64) maxSupply = State<UInt64>()
     @state(UInt64) circulatingSupply = State<UInt64>()
 
-    deploy(args: DeployArgs & {}) {
+    deploy(args: DeployArgs) {
         super.deploy(args)
 
         this.account.permissions.set({
             ...Permissions.default(),
             editState: Permissions.proofOrSignature(),
-            receive: Permissions.proof(),
             access: Permissions.proofOrSignature(),
         })
 
@@ -49,13 +48,22 @@ export class Token extends SmartContract {
         this.circulatingSupply.set(UInt64.from(0))
     }
 
+    @method tokenDeploy(address: PublicKey, verificationKey: VerificationKey) {
+        const tokenId = this.token.id
+        const deployUpdate = AccountUpdate.defaultAccountUpdate(address, tokenId)
+        this.approve(deployUpdate)
+        deployUpdate.account.permissions.set(Permissions.default())
+        deployUpdate.account.verificationKey.set(verificationKey)
+        deployUpdate.requireSignature()
+    }
+
     @method mint(receiver: PublicKey, amount: UInt64) {
-        let maxSupply = this.maxSupply.getAndRequireEquals()
-        let circulatingSupply = this.circulatingSupply.getAndRequireEquals()
+        const maxSupply = this.maxSupply.getAndRequireEquals()
+        const circulatingSupply = this.circulatingSupply.getAndRequireEquals()
 
-        let newCirculatingSupply = circulatingSupply.add(amount)
+        const newCirculatingSupply = circulatingSupply.add(amount)
 
-        newCirculatingSupply.assertLessThanOrEqual(maxSupply, TokenError.MaxSupplyCannotBeExceeded)
+        newCirculatingSupply.assertLessThanOrEqual(maxSupply)
 
         this.token.mint({
             address: receiver,
@@ -66,9 +74,9 @@ export class Token extends SmartContract {
     }
 
     @method burn(burner: PublicKey, amount: UInt64) {
-        let circulatingSupply = this.circulatingSupply.getAndRequireEquals()
+        const circulatingSupply = this.circulatingSupply.getAndRequireEquals()
 
-        let newCirculatingSupply = circulatingSupply.sub(amount)
+        const newCirculatingSupply = circulatingSupply.sub(amount)
 
         this.token.burn({
             address: burner,
@@ -78,28 +86,20 @@ export class Token extends SmartContract {
         this.circulatingSupply.set(newCirculatingSupply)
     }
 
-    @method transfer(sender: PublicKey, receiver: PublicKey, amount: UInt64, callback: Experimental.Callback<any>) {
-        const tokenId = this.token.id
-        const layout = AccountUpdate.Layout.NoChildren
-
-        const senderAccountUpdate = this.approve(callback, layout)
+    @method transfer(
+        senderAddress: PublicKey,
+        receiverAddress: PublicKey,
+        amount: UInt64,
+        callback: Experimental.Callback<any>
+    ) {
+        const senderAccountUpdate = this.approve(callback, AccountUpdate.Layout.AnyChildren)
         const negativeAmount = Int64.fromObject(senderAccountUpdate.body.balanceChange)
         negativeAmount.assertEquals(Int64.from(amount).neg())
-
+        const tokenId = this.token.id
         senderAccountUpdate.body.tokenId.assertEquals(tokenId)
-        senderAccountUpdate.body.publicKey.assertEquals(sender)
-
-        const receiverAccountUpdate = Experimental.createChildAccountUpdate(this.self, receiver, tokenId)
+        senderAccountUpdate.body.publicKey.assertEquals(senderAddress)
+        const receiverAccountUpdate = Experimental.createChildAccountUpdate(this.self, receiverAddress, tokenId)
         receiverAccountUpdate.balance.addInPlace(amount)
-    }
-
-    @method deployZkapp(address: PublicKey, verificationKey: VerificationKey) {
-        let tokenId = this.token.id
-        let zkapp = AccountUpdate.defaultAccountUpdate(address, tokenId)
-        this.approve(zkapp)
-        zkapp.account.permissions.set(Permissions.default())
-        zkapp.account.verificationKey.set(verificationKey)
-        zkapp.requireSignature()
     }
 }
 
@@ -110,19 +110,16 @@ describe('Token Contract', () => {
     const deployerPrivateKey: PrivateKey = Local.testAccounts[0].privateKey
     const deployerPublicKey: PublicKey = Local.testAccounts[0].publicKey
 
-    const user1PrivateKey: PrivateKey = Local.testAccounts[1].privateKey
-    const user1PublicKey: PublicKey = Local.testAccounts[1].publicKey
-
-    const user2PrivateKey: PrivateKey = Local.testAccounts[2].privateKey
-    const user2PublicKey: PublicKey = Local.testAccounts[2].publicKey
+    const userPrivateKey: PrivateKey = Local.testAccounts[1].privateKey
+    const userPublicKey: PublicKey = Local.testAccounts[1].publicKey
 
     const exchangeZkAppPrivateKey: PrivateKey = PrivateKey.random()
     const exchangeZkAppPublicKey: PublicKey = exchangeZkAppPrivateKey.toPublicKey()
     const exchange: Exchange = new Exchange(exchangeZkAppPublicKey)
 
-    const tokenOneZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const tokenOneZkAppPublicKey: PublicKey = tokenOneZkAppPrivateKey.toPublicKey()
-    const token: Token = new Token(tokenOneZkAppPublicKey)
+    const tokenZkAppPrivateKey: PrivateKey = PrivateKey.random()
+    const tokenZkAppPublicKey: PublicKey = tokenZkAppPrivateKey.toPublicKey()
+    const token: Token = new Token(tokenZkAppPublicKey)
 
     let exchangeZkAppverificationKey: { data: string; hash: Field }
     let tokenZkAppverificationKey: { data: string; hash: Field }
@@ -135,76 +132,57 @@ describe('Token Contract', () => {
         tokenZkAppverificationKey = results[1].verificationKey
     })
 
-    it('can create exchange', async () => {
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            exchange.deploy({
-                verificationKey: exchangeZkAppverificationKey,
-                zkappKey: exchangeZkAppPrivateKey,
-            })
-        })
-
-        await tx.prove()
-        await tx.sign([deployerPrivateKey, exchangeZkAppPrivateKey]).send()
-    })
-
     it('can deploy token', async () => {
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
+        const tx = await Mina.transaction(userPublicKey, () => {
+            AccountUpdate.fundNewAccount(userPublicKey)
 
             token.deploy({
                 verificationKey: tokenZkAppverificationKey,
-                zkappKey: tokenOneZkAppPrivateKey,
+                zkappKey: tokenZkAppPrivateKey,
             })
         })
 
         await tx.prove()
-        await tx.sign([user1PrivateKey, tokenOneZkAppPrivateKey]).send()
+        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
+    })
+
+    it('can deploy exchange', async () => {
+        const tx = await Mina.transaction(userPublicKey, () => {
+            AccountUpdate.fundNewAccount(userPublicKey)
+            token.tokenDeploy(exchangeZkAppPublicKey, exchangeZkAppverificationKey)
+        })
+
+        await tx.prove()
+        await tx.sign([userPrivateKey, exchangeZkAppPrivateKey, tokenZkAppPrivateKey]).send()
     })
 
     it('can mint token', async () => {
         const supply = UInt64.from(21_000_000)
 
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
-
+        const tx = await Mina.transaction(userPublicKey, () => {
             token.mint(exchange.address, supply)
         })
 
         await tx.prove()
-        await tx.sign([user1PrivateKey, tokenOneZkAppPrivateKey]).send()
+        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
 
         const bal = Mina.getBalance(exchange.address, token.token.id)
 
         expect(supply).toEqual(bal)
     })
 
-    // YOU CAN UNCOMMENT BELOW, BUT IT WON'T MAKE ANY DIFFERENCE
-
-    // it('can deploy zkapp token', async () => {
-    //     const tx = await Mina.transaction(user2PublicKey, () => {
-    //         token.deployZkapp(exchangeZkAppPublicKey, exchangeZkAppverificationKey)
-    //     })
-
-    //     await tx.prove()
-    //     await tx.sign([user2PrivateKey, exchangeZkAppPrivateKey, tokenOneZkAppPrivateKey]).send()
-    // })
-
     it('can transfer token', async () => {
         const amount = UInt64.from(10_000_000)
 
-        const callback = Experimental.Callback.create(exchange, 'approveZkapp', [amount])
+        const callback = Experimental.Callback.create(exchange, 'approveSend', [amount])
 
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
-
-            token.transfer(exchange.address, user2PublicKey, amount, callback)
+        const tx = await Mina.transaction(userPublicKey, () => {
+            token.transfer(exchange.address, userPublicKey, amount, callback)
         })
 
         await tx.prove()
-        await tx.sign([user2PrivateKey, tokenOneZkAppPrivateKey, exchangeZkAppPrivateKey]).send()
+        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
 
         expect(Mina.getBalance(exchange.address, token.token.id)).toEqual(amount.add(1_000_000))
-        expect(Mina.getBalance(user2PublicKey, token.token.id)).toEqual(amount)
     })
 })
