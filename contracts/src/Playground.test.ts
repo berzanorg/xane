@@ -104,85 +104,94 @@ class Token extends SmartContract {
 }
 
 describe('Token Contract', () => {
-    const Local = Mina.LocalBlockchain({ proofsEnabled })
+    const Local = Mina.LocalBlockchain()
     Mina.setActiveInstance(Local)
 
-    const deployerPrivateKey: PrivateKey = Local.testAccounts[0].privateKey
-    const deployerPublicKey: PublicKey = Local.testAccounts[0].publicKey
+    const feePayer = Local.testAccounts[0].privateKey
+    const feePayerAddress = Local.testAccounts[0].publicKey
 
-    const userPrivateKey: PrivateKey = Local.testAccounts[1].privateKey
-    const userPublicKey: PublicKey = Local.testAccounts[1].publicKey
+    const tokenZkAppKey = PrivateKey.random()
+    const tokenZkAppAddress = tokenZkAppKey.toPublicKey()
 
-    const exchangeZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const exchangeZkAppPublicKey: PublicKey = exchangeZkAppPrivateKey.toPublicKey()
-    const exchange: Exchange = new Exchange(exchangeZkAppPublicKey)
+    const exchangeKey = PrivateKey.random()
+    const exchangeAddress = exchangeKey.toPublicKey()
 
-    const tokenZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const tokenZkAppPublicKey: PublicKey = tokenZkAppPrivateKey.toPublicKey()
-    const token: Token = new Token(tokenZkAppPublicKey)
+    const tokenAccount1Key = PrivateKey.random()
+    const tokenAccount1 = tokenAccount1Key.toPublicKey()
 
-    let exchangeZkAppverificationKey: { data: string; hash: Field }
-    let tokenZkAppverificationKey: { data: string; hash: Field }
+    const tokenZkApp = new Token(tokenZkAppAddress)
+    const tokenId = tokenZkApp.token.id
+
+    const zkAppB = new Exchange(exchangeAddress, tokenId)
+
+    let exchangeVerificationKey: { data: string; hash: Field }
+    let tokenVerificationKey: { data: string; hash: Field }
+
+    const token: Token = new Token(tokenZkAppAddress)
 
     beforeAll(async () => {
         // we're compiling both contracts in parallel to finish earlier
         const results = await Promise.all([Exchange.compile(), Token.compile()])
 
-        exchangeZkAppverificationKey = results[0].verificationKey
-        tokenZkAppverificationKey = results[1].verificationKey
+        exchangeVerificationKey = results[0].verificationKey
+        tokenVerificationKey = results[1].verificationKey
     })
 
     it('can deploy token', async () => {
-        const tx = await Mina.transaction(userPublicKey, () => {
-            AccountUpdate.fundNewAccount(userPublicKey)
+        const tx = await Mina.transaction(feePayerAddress, () => {
+            AccountUpdate.fundNewAccount(feePayerAddress)
 
             token.deploy({
-                verificationKey: tokenZkAppverificationKey,
-                zkappKey: tokenZkAppPrivateKey,
+                verificationKey: tokenVerificationKey,
+                zkappKey: tokenZkAppKey,
             })
         })
 
         await tx.prove()
-        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
+        await tx.sign([feePayer, tokenZkAppKey]).send()
     })
 
     it('can deploy exchange', async () => {
-        const tx = await Mina.transaction(userPublicKey, () => {
-            AccountUpdate.fundNewAccount(userPublicKey)
-            token.tokenDeploy(exchangeZkAppPublicKey, exchangeZkAppverificationKey)
+        const tx = await Mina.transaction(feePayerAddress, () => {
+            AccountUpdate.fundNewAccount(feePayerAddress)
+            token.tokenDeploy(exchangeAddress, exchangeVerificationKey)
         })
 
         await tx.prove()
-        await tx.sign([userPrivateKey, exchangeZkAppPrivateKey, tokenZkAppPrivateKey]).send()
+        await tx.sign([feePayer, exchangeKey, tokenZkAppKey]).send()
     })
 
     it('can mint token', async () => {
-        const supply = UInt64.from(21_000_000)
+        const amount = UInt64.from(21_000_000)
 
-        const tx = await Mina.transaction(userPublicKey, () => {
-            token.mint(exchange.address, supply)
+        const tx = await Mina.transaction(feePayerAddress, () => {
+            token.mint(exchangeAddress, amount)
         })
 
         await tx.prove()
-        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
+        await tx.sign([feePayer, tokenZkAppKey]).send()
 
-        const bal = Mina.getBalance(exchange.address, token.token.id)
+        const bal = Mina.getBalance(exchangeAddress, token.token.id)
 
-        expect(supply).toEqual(bal)
+        expect(amount).toEqual(bal)
     })
 
     it('can transfer token', async () => {
         const amount = UInt64.from(10_000_000)
 
-        const callback = Experimental.Callback.create(exchange, 'approveSend', [amount])
-
-        const tx = await Mina.transaction(userPublicKey, () => {
-            token.transfer(exchange.address, userPublicKey, amount, callback)
+        const tx = await Mina.transaction(feePayerAddress, () => {
+            const callback = Experimental.Callback.create(zkAppB, 'approveSend', [amount])
+            AccountUpdate.fundNewAccount(feePayerAddress)
+            token.transfer(exchangeAddress, tokenAccount1, amount, callback)
         })
 
         await tx.prove()
-        await tx.sign([userPrivateKey, tokenZkAppPrivateKey]).send()
+        await tx.sign([feePayer, tokenZkAppKey]).send()
 
-        expect(Mina.getBalance(exchange.address, token.token.id)).toEqual(amount.add(1_000_000))
+        const bal1 = Mina.getBalance(exchangeAddress, tokenZkApp.token.id)
+        expect(bal1).toEqual(UInt64.from(11_000_000))
+
+        const bal2 = Mina.getBalance(tokenAccount1, tokenZkApp.token.id)
+        expect(bal2).toEqual(UInt64.from(10_000_000))
     })
 })
