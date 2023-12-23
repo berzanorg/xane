@@ -15,6 +15,8 @@ import {
     state,
 } from 'o1js'
 
+const proofsEnabled = false
+
 const createRandomAccount = () => {
     const privateKey = PrivateKey.random()
     const publicKey = privateKey.toPublicKey()
@@ -157,7 +159,7 @@ class Dex extends SmartContract {
     }
 }
 
-const Local = Mina.LocalBlockchain()
+const Local = Mina.LocalBlockchain({proofsEnabled})
 Mina.setActiveInstance(Local)
 
 const accounts = {
