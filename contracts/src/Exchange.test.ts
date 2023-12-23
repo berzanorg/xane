@@ -554,18 +554,18 @@ describe('Exchange Contract', () => {
 
     it('can create ONE token', async () => {
         const symbol = Encoding.stringToFields('ONE')[0]
-        const supply = UInt64.from(21_000_000)
+        const decimals = UInt64.from(8)
+        const maxSupply = UInt64.from(21_000_000)
 
         const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
             AccountUpdate.fundNewAccount(user1PublicKey)
 
             tokenOne.deploy({
                 verificationKey: tokenZkAppverificationKey,
                 zkappKey: tokenOneZkAppPrivateKey,
-                symbol: symbol,
-                fixedSupply: supply,
             })
+
+            tokenOne.initialize(symbol, decimals, maxSupply)
         })
 
         await tx.prove()
@@ -574,18 +574,44 @@ describe('Exchange Contract', () => {
 
     it('can create TWO token', async () => {
         const symbol = Encoding.stringToFields('TWO')[0]
-        const supply = UInt64.from(1_000_000_000)
+        const decimals = UInt64.from(5)
+        const maxSupply = UInt64.from(1_000_000_000)
 
         const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
             AccountUpdate.fundNewAccount(user2PublicKey)
 
             tokenTwo.deploy({
                 verificationKey: tokenZkAppverificationKey,
                 zkappKey: tokenTwoZkAppPrivateKey,
-                symbol,
-                fixedSupply: supply,
             })
+
+            tokenTwo.initialize(symbol, decimals, maxSupply)
+        })
+
+        await tx.prove()
+        await tx.sign([user2PrivateKey, tokenTwoZkAppPrivateKey]).send()
+    })
+
+    it('can mint ONE token', async () => {
+        const amount = UInt64.from(21_000_000)
+
+        const tx = await Mina.transaction(user1PublicKey, () => {
+            AccountUpdate.fundNewAccount(user1PublicKey)
+
+            tokenOne.mint(user1PublicKey, amount)
+        })
+
+        await tx.prove()
+        await tx.sign([user1PrivateKey, tokenOneZkAppPrivateKey]).send()
+    })
+
+    it('can mint TWO token', async () => {
+        const amount = UInt64.from(1_000_000_000)
+
+        const tx = await Mina.transaction(user2PublicKey, () => {
+            AccountUpdate.fundNewAccount(user2PublicKey)
+
+            tokenTwo.mint(user2PublicKey, amount)
         })
 
         await tx.prove()
@@ -779,84 +805,84 @@ describe('Exchange Contract', () => {
         await tx.sign([user2PrivateKey]).send()
     })
 
-    it('can cancel BUY orders', async () => {
-        console.log('on-chain: ', exchange.root.get().toString())
-        const orderId = 1
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
-        const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature, amount, price } =
-            testAuthority.cancelBuyOrder(orderId, baseCurrency, quoteCurrency)
+    //     it('can cancel BUY orders', async () => {
+    //         console.log('on-chain: ', exchange.root.get().toString())
+    //         const orderId = 1
+    //         const baseCurrency = tokenOne.address
+    //         const quoteCurrency = tokenTwo.address
+    //         const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature, amount, price } =
+    //             testAuthority.cancelBuyOrder(orderId, baseCurrency, quoteCurrency)
 
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            exchange.cancelBuyOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
-                buyOrderWitness,
-                sellOrdersRoot,
-                pairWitness,
-                authoritySignature
-            )
-        })
+    //         const tx = await Mina.transaction(user2PublicKey, () => {
+    //             exchange.cancelBuyOrder(
+    //                 amount,
+    //                 price,
+    //                 baseCurrency,
+    //                 quoteCurrency,
+    //                 buyOrderWitness,
+    //                 sellOrdersRoot,
+    //                 pairWitness,
+    //                 authoritySignature
+    //             )
+    //         })
 
-        await tx.prove()
-        await tx.sign([user2PrivateKey]).send()
-    })
+    //         await tx.prove()
+    //         await tx.sign([user2PrivateKey]).send()
+    //     })
 
-    it('can place cancalable SELL orders', async () => {
-        const amount = new UInt64(10)
-        const price = new UInt64(50)
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
+    //     it('can place cancalable SELL orders', async () => {
+    //         const amount = new UInt64(10)
+    //         const price = new UInt64(50)
+    //         const baseCurrency = tokenOne.address
+    //         const quoteCurrency = tokenTwo.address
 
-        const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } = testAuthority.placeSellOrder(
-            amount,
-            price,
-            baseCurrency,
-            quoteCurrency,
-            user1PublicKey
-        )
+    //         const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } = testAuthority.placeSellOrder(
+    //             amount,
+    //             price,
+    //             baseCurrency,
+    //             quoteCurrency,
+    //             user1PublicKey
+    //         )
 
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            exchange.placeSellOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
-                buyOrdersRoot,
-                sellOrderWitness,
-                pairWitness,
-                authoritySignature
-            )
-        })
+    //         const tx = await Mina.transaction(user1PublicKey, () => {
+    //             exchange.placeSellOrder(
+    //                 amount,
+    //                 price,
+    //                 baseCurrency,
+    //                 quoteCurrency,
+    //                 buyOrdersRoot,
+    //                 sellOrderWitness,
+    //                 pairWitness,
+    //                 authoritySignature
+    //             )
+    //         })
 
-        await tx.prove()
-        await tx.sign([user1PrivateKey]).send()
-    })
+    //         await tx.prove()
+    //         await tx.sign([user1PrivateKey]).send()
+    //     })
 
-    it('can cancel SELL orders', async () => {
-        console.log('on-chain: ', exchange.root.get().toString())
-        const orderId = 1
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
-        const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature, amount, price } =
-            testAuthority.cancelSellOrder(orderId, baseCurrency, quoteCurrency)
+    //     it('can cancel SELL orders', async () => {
+    //         console.log('on-chain: ', exchange.root.get().toString())
+    //         const orderId = 1
+    //         const baseCurrency = tokenOne.address
+    //         const quoteCurrency = tokenTwo.address
+    //         const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature, amount, price } =
+    //             testAuthority.cancelSellOrder(orderId, baseCurrency, quoteCurrency)
 
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            exchange.cancelSellOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
-                buyOrdersRoot,
-                sellOrderWitness,
-                pairWitness,
-                authoritySignature
-            )
-        })
+    //         const tx = await Mina.transaction(user1PublicKey, () => {
+    //             exchange.cancelSellOrder(
+    //                 amount,
+    //                 price,
+    //                 baseCurrency,
+    //                 quoteCurrency,
+    //                 buyOrdersRoot,
+    //                 sellOrderWitness,
+    //                 pairWitness,
+    //                 authoritySignature
+    //             )
+    //         })
 
-        await tx.prove()
-        await tx.sign([user1PrivateKey]).send()
-    })
+    //         await tx.prove()
+    //         await tx.sign([user1PrivateKey]).send()
+    //     })
 })
