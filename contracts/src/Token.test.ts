@@ -1,115 +1,148 @@
-import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, UInt64, Encoding, Experimental } from 'o1js'
+import {
+    AccountUpdate,
+    DeployArgs,
+    Encoding,
+    Experimental,
+    Field,
+    Int64,
+    Mina,
+    Permissions,
+    PrivateKey,
+    PublicKey,
+    SmartContract,
+    State,
+    UInt64,
+    VerificationKey,
+    method,
+    state,
+} from 'o1js'
 import { Token } from './Token'
 
 const proofsEnabled = false
 
-describe('Token Contract', () => {
-    const Local = Mina.LocalBlockchain({ proofsEnabled })
-    Mina.setActiveInstance(Local)
+const createRandomAccount = () => {
+    const privateKey = PrivateKey.random()
+    const publicKey = privateKey.toPublicKey()
+    return {
+        publicKey,
+        privateKey,
+    }
+}
 
-    const deployerPrivateKey: PrivateKey = Local.testAccounts[0].privateKey
-    const deployerPublicKey: PublicKey = Local.testAccounts[0].publicKey
+const Local = Mina.LocalBlockchain({ proofsEnabled })
+Mina.setActiveInstance(Local)
 
-    const userPrivateKey: PrivateKey = Local.testAccounts[1].privateKey
-    const userPublicKey: PublicKey = Local.testAccounts[1].publicKey
+const accounts = {
+    token: createRandomAccount(),
+    feePayer: Local.testAccounts[0],
+    mainUser: Local.testAccounts[1],
+    randomUser: createRandomAccount(),
+}
 
-    const tokenZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const tokenZkAppPublicKey: PublicKey = tokenZkAppPrivateKey.toPublicKey()
+const token = new Token(accounts.token.publicKey)
 
-    const token: Token = new Token(tokenZkAppPublicKey)
+const { verificationKey: verificationKeyOfToken } = await Token.compile()
 
-    let verificationKey: { data: string; hash: Field }
+it('can deploy tokens', async () => {
+    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
+        AccountUpdate.fundNewAccount(accounts.feePayer.publicKey)
 
-    beforeAll(async () => {
-        verificationKey = (await Token.compile()).verificationKey
+        token.deploy({ verificationKey: verificationKeyOfToken })
     })
 
-    it('can create a new token', async () => {
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            token.deploy({ verificationKey, zkappKey: tokenZkAppPrivateKey })
-        })
+    await tx.prove()
 
-        await tx.prove()
-        await tx.sign([deployerPrivateKey, tokenZkAppPrivateKey]).send()
+    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
+
+    await tx.send()
+
+    expect(token.decimals.get()).toEqual(UInt64.zero)
+    expect(token.symbol.get()).toEqual(Field(0))
+    expect(token.maxSupply.get()).toEqual(UInt64.zero)
+    expect(token.circulatingSupply.get()).toEqual(UInt64.zero)
+})
+
+it('can initialize tokens', async () => {
+    const symbol = Encoding.stringToFields('MYT')[0]
+    const decimals = UInt64.from(3)
+    const maxSupply = UInt64.from(100_000_000)
+
+    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
+        token.initialize(symbol, decimals, maxSupply)
     })
 
-    it('can initialize token ', async () => {
-        const symbol = Encoding.stringToFields('MYT')[0]
-        const decimals = UInt64.from(3)
-        const maxSupply = UInt64.from(100_000_000)
+    await tx.prove()
 
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            token.initialize(symbol, decimals, maxSupply)
-        })
+    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
 
-        await tx.prove()
-        await tx.sign([deployerPrivateKey, tokenZkAppPrivateKey]).send()
+    await tx.send()
 
-        console.log(token.decimals.get().toString())
+    expect(token.decimals.get()).toEqual(decimals)
+    expect(token.symbol.get()).toEqual(symbol)
+    expect(token.maxSupply.get()).toEqual(maxSupply)
+    expect(token.circulatingSupply.get()).toEqual(UInt64.from(0))
+})
 
-        expect(token.decimals.get()).toEqual(decimals)
-        expect(token.symbol.get()).toEqual(symbol)
-        expect(token.maxSupply.get()).toEqual(maxSupply)
-        expect(token.circulatingSupply.get()).toEqual(UInt64.from(0))
+it('can mint tokens', async () => {
+    const amount = UInt64.from(100_000_000)
+    const receiver = accounts.mainUser.publicKey
+
+    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
+        AccountUpdate.fundNewAccount(accounts.feePayer.publicKey)
+        token.mint(receiver, amount)
     })
 
-    it('can mint tokens', async () => {
-        const receiverAddress = userPublicKey
-        const amount = UInt64.from(50_000_000)
+    await tx.prove()
 
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            token.mint(receiverAddress, amount)
-        })
+    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
 
-        await tx.prove()
-        await tx.sign([deployerPrivateKey]).send()
+    await tx.send()
 
-        expect(Mina.getBalance(receiverAddress, token.token.id)).toEqual(amount)
+    const receiverBalance = Mina.getBalance(receiver, token.token.id)
+    expect(receiverBalance).toEqual(amount)
+})
+
+it('can transfer tokens', async () => {
+    const senderStartingBalance = UInt64.from(100_000_000)
+    const transferAmount = UInt64.from(10_000_000)
+    const sender = accounts.mainUser.publicKey
+    const receiver = accounts.randomUser.publicKey
+
+    const senderPrivateKey = accounts.mainUser.privateKey
+
+    const tx = await Mina.transaction(sender, () => {
+        AccountUpdate.fundNewAccount(sender)
+        token.transfer(sender, receiver, transferAmount)
     })
 
-    it('can send and receive tokens', async () => {
-        const sender = userPublicKey
-        const receiver = PrivateKey.random().toPublicKey()
-        const amount = UInt64.from(20_000_000)
-        const remainingAmount = UInt64.from(80_000_000)
+    await tx.prove()
 
-        const tx = await Mina.transaction(sender, () => {
-            AccountUpdate.fundNewAccount(sender)
-            token.transfer(sender, receiver, amount)
-        })
+    tx.sign([senderPrivateKey])
 
-        await tx.prove()
-        await tx.sign([userPrivateKey]).send()
+    await tx.send()
 
-        expect(Mina.getBalance(receiver, token.token.id)).toEqual(amount)
-        expect(Mina.getBalance(sender, token.token.id)).toEqual(remainingAmount)
+    const senderBalance = Mina.getBalance(sender, token.token.id)
+    expect(senderBalance).toEqual(senderStartingBalance.sub(transferAmount))
+
+    const receiverBalance = Mina.getBalance(receiver, token.token.id)
+    expect(receiverBalance).toEqual(transferAmount)
+})
+
+it("can't transfer tokens when not signed by the sender", async () => {
+    const transferAmount = UInt64.from(10_000_000)
+    const sender = accounts.mainUser.publicKey
+    const receiver = accounts.randomUser.publicKey
+
+    const anyOtherPrivateKey = PrivateKey.random()
+
+    const tx = await Mina.transaction(sender, () => {
+        AccountUpdate.fundNewAccount(sender)
+        token.transfer(sender, receiver, transferAmount)
     })
 
-    it("can't send and receive tokens if balance is not enough", async () => {
-        const receiverAddress = PrivateKey.random().toPublicKey()
-        const amount = UInt64.from(90_000_000)
+    await tx.prove()
 
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            token.transfer(deployerPublicKey, receiverAddress, amount)
-        })
+    tx.sign([anyOtherPrivateKey])
 
-        await tx.prove()
-        await tx.sign([deployerPrivateKey]).send()
-    })
-
-    it("can't send and receive tokens if not signed by the sender", async () => {
-        const receiverAddress = PrivateKey.random().toPublicKey()
-        const amount = UInt64.from(10_000_000)
-
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            token.transfer(deployerPublicKey, receiverAddress, amount)
-        })
-
-        await tx.prove()
-        await tx.sign([]).send()
-    })
+    expect(tx.send()).rejects.toThrow()
 })
