@@ -3,7 +3,7 @@
 > Xane is an order book decentralized exchange on Mina Protocol.
 
 ## Goals For December, 2023.
-- Use [`Next.js`](https://nextjs.org/) instead of [`Svelte`](https://svelte.dev/) for the UI.
+- Use [`Astro.js`](https://astro.build/) & [`Solid.js`](https://www.solidjs.com/) instead of [`Svelte`](https://svelte.dev/) for the UI.
 - Make `Exchange` smart contract work as expected.
 - Implement storage of contract addresses of the tokens created by users on the backend.
 - Implement storage of the state of `Exchange` smart contract on the backend.
