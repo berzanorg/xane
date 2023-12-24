@@ -1,6 +1,5 @@
 import { Show } from 'solid-js'
 import { state, setState } from '../lib/store'
-import { createWorker } from '../lib/createWorker'
 
 export default function ButtonConnect() {
     console.log('hey')
@@ -16,8 +15,6 @@ export default function ButtonConnect() {
     const disconnect = async () => {
         setState('address', undefined)
     }
-
-    const worker = createWorker()
 
     return (
         <Show
