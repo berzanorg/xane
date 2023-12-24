@@ -20,129 +20,99 @@ import { Token } from './Token'
 
 const proofsEnabled = false
 
-const createRandomAccount = () => {
-    const privateKey = PrivateKey.random()
-    const publicKey = privateKey.toPublicKey()
-    return {
-        publicKey,
-        privateKey,
-    }
-}
+describe('token test', () => {
+    const Local = Mina.LocalBlockchain({ proofsEnabled })
+    Mina.setActiveInstance(Local)
 
-const Local = Mina.LocalBlockchain({ proofsEnabled })
-Mina.setActiveInstance(Local)
+    const userPrivkey = Local.testAccounts[0].privateKey
+    const userPubkey = Local.testAccounts[0].publicKey
 
-const accounts = {
-    token: createRandomAccount(),
-    feePayer: Local.testAccounts[0],
-    mainUser: Local.testAccounts[1],
-    randomUser: createRandomAccount(),
-}
+    const tokenPrivkey = PrivateKey.random()
+    const tokenPubkey = tokenPrivkey.toPublicKey()
+    const tokenZkapp = new Token(tokenPubkey)
 
-const token = new Token(accounts.token.publicKey)
+    const SYMBOL = Encoding.stringToFields('BTC')[0]
+    const DECIMALS = UInt64.from(9)
+    const SUPPLY_MAX = UInt64.from(21_000_000_000_000_000n)
+    const AMOUNT_MINT = UInt64.from(18_000_000_000_000_000n)
+    const AMOUNT_TRANSFER = UInt64.from(7_000_000_000_000_000n)
 
-const { verificationKey: verificationKeyOfToken } = await Token.compile()
-
-it('can deploy tokens', async () => {
-    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
-        AccountUpdate.fundNewAccount(accounts.feePayer.publicKey)
-
-        token.deploy({ verificationKey: verificationKeyOfToken })
+    beforeAll(async () => {
+        await Token.compile()
     })
 
-    await tx.prove()
-
-    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
-
-    await tx.send()
-
-    expect(token.decimals.get()).toEqual(UInt64.zero)
-    expect(token.symbol.get()).toEqual(Field(0))
-    expect(token.maxSupply.get()).toEqual(UInt64.zero)
-    expect(token.circulatingSupply.get()).toEqual(UInt64.zero)
-})
-
-it('can initialize tokens', async () => {
-    const symbol = Encoding.stringToFields('MYT')[0]
-    const decimals = UInt64.from(3)
-    const maxSupply = UInt64.from(100_000_000)
-
-    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
-        token.initialize(symbol, decimals, maxSupply)
+    it('can deploy tokens', async () => {
+        const tx = await Mina.transaction(userPubkey, () => {
+            AccountUpdate.fundNewAccount(userPubkey)
+            tokenZkapp.deploy()
+        })
+        await tx.prove()
+        tx.sign([userPrivkey, tokenPrivkey])
+        await tx.send()
+        tokenZkapp.symbol.getAndRequireEquals().assertEquals(Field(0))
+        tokenZkapp.decimals.getAndRequireEquals().assertEquals(UInt64.zero)
+        tokenZkapp.maxSupply.getAndRequireEquals().assertEquals(UInt64.zero)
+        tokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(UInt64.zero)
     })
 
-    await tx.prove()
-
-    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
-
-    await tx.send()
-
-    expect(token.decimals.get()).toEqual(decimals)
-    expect(token.symbol.get()).toEqual(symbol)
-    expect(token.maxSupply.get()).toEqual(maxSupply)
-    expect(token.circulatingSupply.get()).toEqual(UInt64.from(0))
-})
-
-it('can mint tokens', async () => {
-    const amount = UInt64.from(100_000_000)
-    const receiver = accounts.mainUser.publicKey
-
-    const tx = await Mina.transaction(accounts.feePayer.publicKey, () => {
-        AccountUpdate.fundNewAccount(accounts.feePayer.publicKey)
-        token.mint(receiver, amount)
+    it('can initialize tokens', async () => {
+        const tx = await Mina.transaction(userPubkey, () => {
+            tokenZkapp.initialize(SYMBOL, DECIMALS, SUPPLY_MAX)
+        })
+        await tx.prove()
+        tx.sign([userPrivkey, tokenPrivkey])
+        await tx.send()
+        tokenZkapp.symbol.getAndRequireEquals().assertEquals(SYMBOL)
+        tokenZkapp.decimals.getAndRequireEquals().assertEquals(DECIMALS)
+        tokenZkapp.maxSupply.getAndRequireEquals().assertEquals(SUPPLY_MAX)
+        tokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(UInt64.from(0))
     })
 
-    await tx.prove()
-
-    tx.sign([accounts.feePayer.privateKey, accounts.token.privateKey])
-
-    await tx.send()
-
-    const receiverBalance = Mina.getBalance(receiver, token.token.id)
-    expect(receiverBalance).toEqual(amount)
-})
-
-it('can transfer tokens', async () => {
-    const senderStartingBalance = UInt64.from(100_000_000)
-    const transferAmount = UInt64.from(10_000_000)
-    const sender = accounts.mainUser.publicKey
-    const receiver = accounts.randomUser.publicKey
-
-    const senderPrivateKey = accounts.mainUser.privateKey
-
-    const tx = await Mina.transaction(sender, () => {
-        AccountUpdate.fundNewAccount(sender)
-        token.transfer(sender, receiver, transferAmount)
+    it('can mint tokens', async () => {
+        const tx = await Mina.transaction(userPubkey, () => {
+            AccountUpdate.fundNewAccount(userPubkey)
+            tokenZkapp.mint(userPubkey, AMOUNT_MINT)
+        })
+        await tx.prove()
+        tx.sign([userPrivkey, tokenPrivkey])
+        await tx.send()
+        Mina.getBalance(userPubkey, tokenZkapp.token.id).assertEquals(AMOUNT_MINT)
+        tokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(AMOUNT_MINT)
     })
 
-    await tx.prove()
-
-    tx.sign([senderPrivateKey])
-
-    await tx.send()
-
-    const senderBalance = Mina.getBalance(sender, token.token.id)
-    expect(senderBalance).toEqual(senderStartingBalance.sub(transferAmount))
-
-    const receiverBalance = Mina.getBalance(receiver, token.token.id)
-    expect(receiverBalance).toEqual(transferAmount)
-})
-
-it("can't transfer tokens when not signed by the sender", async () => {
-    const transferAmount = UInt64.from(10_000_000)
-    const sender = accounts.mainUser.publicKey
-    const receiver = accounts.randomUser.publicKey
-
-    const anyOtherPrivateKey = PrivateKey.random()
-
-    const tx = await Mina.transaction(sender, () => {
-        AccountUpdate.fundNewAccount(sender)
-        token.transfer(sender, receiver, transferAmount)
+    it('can transfer tokens', async () => {
+        const receiver = PrivateKey.random().toPublicKey()
+        const tx = await Mina.transaction(userPubkey, () => {
+            AccountUpdate.fundNewAccount(userPubkey)
+            tokenZkapp.transfer(userPubkey, receiver, AMOUNT_TRANSFER)
+        })
+        await tx.prove()
+        tx.sign([userPrivkey])
+        await tx.send()
+        Mina.getBalance(userPubkey, tokenZkapp.token.id).assertEquals(AMOUNT_MINT.sub(AMOUNT_TRANSFER))
+        Mina.getBalance(receiver, tokenZkapp.token.id).assertEquals(AMOUNT_TRANSFER)
     })
 
-    await tx.prove()
+    it("can't transfer tokens when signature is not valid", async () => {
+        const receiver = PrivateKey.random().toPublicKey()
+        const anyOtherPrivateKey = PrivateKey.random()
+        const tx = await Mina.transaction(userPubkey, () => {
+            AccountUpdate.fundNewAccount(userPubkey)
+            tokenZkapp.transfer(userPubkey, receiver, AMOUNT_TRANSFER)
+        })
+        await tx.prove()
+        tx.sign([anyOtherPrivateKey])
+        expect(tx.send()).rejects.toThrow()
+    })
 
-    tx.sign([anyOtherPrivateKey])
-
-    expect(tx.send()).rejects.toThrow()
+    it("can't transfer tokens when balance is not enough", async () => {
+        const receiver = PrivateKey.random().toPublicKey()
+        const tx = await Mina.transaction(userPubkey, () => {
+            AccountUpdate.fundNewAccount(userPubkey)
+            tokenZkapp.transfer(userPubkey, receiver, SUPPLY_MAX)
+        })
+        await tx.prove()
+        tx.sign([userPrivkey])
+        expect(tx.send()).rejects.toThrow()
+    })
 })
