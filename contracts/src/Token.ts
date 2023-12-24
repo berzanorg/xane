@@ -18,6 +18,7 @@ export class Token extends SmartContract {
     @state(UInt64) decimals = State<UInt64>()
     @state(UInt64) maxSupply = State<UInt64>()
     @state(UInt64) circulatingSupply = State<UInt64>()
+    @state(PublicKey) owner = State<PublicKey>()
 
     deploy(args?: DeployArgs) {
         super.deploy(args)
@@ -32,9 +33,11 @@ export class Token extends SmartContract {
         this.symbol.set(symbol)
         this.decimals.set(decimals)
         this.maxSupply.set(maxSupply)
+        this.owner.set(this.sender)
     }
 
     @method mint(receiver: PublicKey, amount: UInt64) {
+        this.owner.getAndRequireEquals().assertEquals(this.sender)
         const maxSupply = this.maxSupply.getAndRequireEquals()
         const circulatingSupply = this.circulatingSupply.getAndRequireEquals()
 
