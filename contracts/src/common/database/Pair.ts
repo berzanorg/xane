@@ -1,11 +1,12 @@
 import { Field, MerkleTree, Poseidon, PublicKey } from 'o1js'
 import { Order } from './Order.js'
-import { ORDERS_HEIGHT } from '../../Exchange.js'
+import { ORDERS_HEIGHT, OrderWitness } from '../../Exchange.js'
+import { DatabaseError } from './DatabaseError.js'
 
 interface AddOrder {
     side: 'BUY' | 'SELL'
-    amount: number
-    price: number
+    amount: bigint
+    price: bigint
     maker: string
 }
 
@@ -14,6 +15,20 @@ interface FindEmptyOrderSlot {
 }
 
 interface RemoveOrder {
+    side: 'BUY' | 'SELL'
+    orderIndex: number
+}
+
+interface GetOrderWitness {
+    side: 'BUY' | 'SELL'
+    orderIndex: number
+}
+
+interface GetOrdersRoot {
+    side: 'BUY' | 'SELL'
+}
+
+interface GetOrder {
     side: 'BUY' | 'SELL'
     orderIndex: number
 }
@@ -63,7 +78,7 @@ export class Pair {
         return orders.length
     }
 
-    _AddOrder(params: AddOrder) {
+    _AddOrder(params: AddOrder): number {
         const order = new Order(params.maker, params.amount, params.price)
 
         switch (params.side) {
@@ -71,12 +86,12 @@ export class Pair {
                 const emptyBuyOrderIndex = this._FindEmptyOrderSlot({ side: 'BUY' })
                 this.buyOrders[emptyBuyOrderIndex] = order
                 this.buyOrdersTree.setLeaf(BigInt(emptyBuyOrderIndex), order._GetHash())
-                break
+                return emptyBuyOrderIndex
             case 'SELL':
                 const emptySellOrderIndex = this._FindEmptyOrderSlot({ side: 'BUY' })
                 this.sellOrders[emptySellOrderIndex] = order
                 this.sellOrdersTree.setLeaf(BigInt(emptySellOrderIndex), order._GetHash())
-                break
+                return emptySellOrderIndex
         }
     }
 
@@ -90,6 +105,41 @@ export class Pair {
                 this.sellOrders[params.orderIndex] = undefined
                 this.sellOrdersTree.setLeaf(BigInt(params.orderIndex), Field(0))
                 break
+        }
+    }
+
+    _GetOrder(params: GetOrder) {
+        switch (params.side) {
+            case 'BUY':
+                const buyOrder = this.buyOrders.at(params.orderIndex)
+                if (buyOrder === undefined) throw DatabaseError.OrderDoesntExist
+                return buyOrder
+            case 'SELL':
+                const sellOrder = this.sellOrders.at(params.orderIndex)
+                if (sellOrder === undefined) throw DatabaseError.OrderDoesntExist
+                return sellOrder
+        }
+    }
+
+    _GetOrderWitness(params: GetOrderWitness) {
+        switch (params.side) {
+            case 'BUY':
+                if (this.buyOrders.at(params.orderIndex) === undefined) throw DatabaseError.OrderDoesntExist
+                const buyOrderWitness = this.buyOrdersTree.getWitness(BigInt(params.orderIndex))
+                return new OrderWitness(buyOrderWitness)
+            case 'SELL':
+                if (this.sellOrders.at(params.orderIndex) === undefined) throw DatabaseError.OrderDoesntExist
+                const sellOrderWitness = this.sellOrdersTree.getWitness(BigInt(params.orderIndex))
+                return new OrderWitness(sellOrderWitness)
+        }
+    }
+
+    _GetOrdersRoot(params: GetOrdersRoot) {
+        switch (params.side) {
+            case 'BUY':
+                return this.buyOrdersTree.getRoot()
+            case 'SELL':
+                return this.sellOrdersTree.getRoot()
         }
     }
 }

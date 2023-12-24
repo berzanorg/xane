@@ -2,10 +2,10 @@ import { Field, Poseidon, PublicKey } from 'o1js'
 
 export class Order {
     maker: string
-    amount: number
-    price: number
+    amount: bigint
+    price: bigint
 
-    constructor(maker: string, amount: number, price: number) {
+    constructor(maker: string, amount: bigint, price: bigint) {
         this.maker = maker
         this.amount = amount
         this.price = price

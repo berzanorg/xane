@@ -1,7 +1,7 @@
 import { MerkleTree } from 'o1js'
 import { Pair } from './Pair.js'
 import { DatabaseError } from './DatabaseError.js'
-import { PAIRS_HEIGHT } from '../../Exchange.js'
+import { OrderWitness, PAIRS_HEIGHT, PairWitness } from '../../Exchange.js'
 
 interface FindPairIndex {
     baseCurrency: string
@@ -17,12 +17,37 @@ interface AddOrder {
     baseCurrency: string
     quoteCurrency: string
     side: 'BUY' | 'SELL'
-    amount: number
-    price: number
+    amount: bigint
+    price: bigint
     maker: string
 }
 
 interface RemoveOrder {
+    baseCurrency: string
+    quoteCurrency: string
+    side: 'BUY' | 'SELL'
+    orderIndex: number
+}
+
+interface GetPairWitness {
+    baseCurrency: string
+    quoteCurrency: string
+}
+
+interface GetOrderWitness {
+    baseCurrency: string
+    quoteCurrency: string
+    side: 'BUY' | 'SELL'
+    orderIndex: number
+}
+
+interface GetOrdersRoot {
+    baseCurrency: string
+    quoteCurrency: string
+    side: 'BUY' | 'SELL'
+}
+
+interface GetOrder {
     baseCurrency: string
     quoteCurrency: string
     side: 'BUY' | 'SELL'
@@ -66,11 +91,11 @@ export class Database {
 
         const pair = this.#data[pairIndex]
 
-        if (!pair) throw DatabaseError.PairDoesntExist
-
-        pair._AddOrder(params)
+        const orderIndex = pair._AddOrder(params)
 
         this.#tree.setLeaf(BigInt(pairIndex), pair._GetHash())
+
+        return orderIndex
     }
 
     removeOrder(params: RemoveOrder) {
@@ -80,10 +105,48 @@ export class Database {
 
         const pair = this.#data[pairIndex]
 
-        if (!pair) throw DatabaseError.PairDoesntExist
-
         pair._RemoveOrder(params)
 
         this.#tree.setLeaf(BigInt(pairIndex), pair._GetHash())
+    }
+
+    getOrder(params: GetOrder) {
+        const pairIndex = this.findPairIndex(params)
+
+        if (pairIndex === undefined) throw DatabaseError.PairDoesntExist
+
+        const pair = this.#data[pairIndex]
+
+        return pair._GetOrder(params)
+    }
+
+    getPairWitness(params: GetPairWitness) {
+        const pairIndex = this.findPairIndex(params)
+
+        if (pairIndex === undefined) throw DatabaseError.PairDoesntExist
+
+        const witness = this.#tree.getWitness(BigInt(pairIndex))
+
+        return new PairWitness(witness)
+    }
+
+    getOrderWitness(params: GetOrderWitness) {
+        const pairIndex = this.findPairIndex(params)
+
+        if (pairIndex === undefined) throw DatabaseError.PairDoesntExist
+
+        const pair = this.#data[pairIndex]
+
+        return pair._GetOrderWitness(params)
+    }
+
+    getOrdersRoot(params: GetOrdersRoot) {
+        const pairIndex = this.findPairIndex(params)
+
+        if (pairIndex === undefined) throw DatabaseError.PairDoesntExist
+
+        const pair = this.#data[pairIndex]
+
+        return pair._GetOrdersRoot(params)
     }
 }
