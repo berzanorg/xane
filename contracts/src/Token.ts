@@ -19,7 +19,7 @@ export class Token extends SmartContract {
     @state(UInt64) maxSupply = State<UInt64>()
     @state(UInt64) circulatingSupply = State<UInt64>()
 
-    deploy(args: DeployArgs) {
+    deploy(args?: DeployArgs) {
         super.deploy(args)
 
         this.account.permissions.set({
