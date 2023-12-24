@@ -1,4 +1,3 @@
-import { Witness } from 'o1js/dist/node/lib/merkle_tree.js'
 import { Token } from './Token.js'
 import {
     DeployArgs,
@@ -8,7 +7,6 @@ import {
     Permissions,
     Poseidon,
     PrivateKey,
-    Provable,
     PublicKey,
     Signature,
     SmartContract,
@@ -18,6 +16,7 @@ import {
     method,
     state,
 } from 'o1js'
+import { Vault } from './Vault.js'
 
 // These are only for testing purposes.
 export const AUTHORITY_PRIVATE_KEY = PrivateKey.fromBase58('EKEvp6bPR2D9BCQYPmKgTC9swtxok5JKQvsovNeffV7487SjkqPu')
@@ -126,7 +125,7 @@ export class Exchange extends SmartContract {
      */
     @state(PublicKey) authority = State<PublicKey>()
 
-    deploy(args: DeployArgs) {
+    deploy(args?: DeployArgs) {
         super.deploy(args)
         this.account.permissions.set({
             ...Permissions.default(),
@@ -139,10 +138,10 @@ export class Exchange extends SmartContract {
         })
     }
 
-    init() {
-        super.init()
+    initialize(authority: PublicKey) {
+        this.authority.requireEquals(PublicKey.empty())
         this.root.set(new MerkleTree(PAIRS_HEIGHT).getRoot())
-        this.authority.set(AUTHORITY_PUBLIC_KEY)
+        this.authority.set(authority)
     }
 
     /**
@@ -163,7 +162,7 @@ export class Exchange extends SmartContract {
             .verify(this.authority.getAndRequireEquals(), [
                 ...baseCurrency.toFields(),
                 ...quoteCurrency.toFields(),
-                pairWitness.calculateIndex(),
+                ...pairWitness.toFields(),
             ])
             .assertTrue(Errors.InvalidSignature)
 
@@ -220,7 +219,6 @@ export class Exchange extends SmartContract {
 
         const quoteToken = new Token(quoteCurrency)
 
-        // this fails inside when there is a problem
         quoteToken.transfer(this.sender, this.address, amount.mul(price))
 
         const order = new Order({
@@ -282,7 +280,6 @@ export class Exchange extends SmartContract {
 
         const baseToken = new Token(baseCurrency)
 
-        // this fails inside when there is a problem
         baseToken.transfer(this.sender, this.address, amount)
 
         const order = new Order({
@@ -350,8 +347,9 @@ export class Exchange extends SmartContract {
 
         const quoteToken = new Token(quoteCurrency)
 
-        // this fails inside when there is a problem
-        quoteToken.transfer(this.address, this.sender, amount.mul(price))
+        const vault = new Vault(this.address, quoteToken.token.id)
+        vault.decrementBalance(amount.mul(price))
+        quoteToken.approveUpdateAndTransfer(vault.self, this.sender, amount.mul(price))
 
         const newBuyOrdersRoot = buyOrderWitness.calculateRoot(FIELD_ZERO)
 
@@ -412,8 +410,9 @@ export class Exchange extends SmartContract {
 
         const baseToken = new Token(baseCurrency)
 
-        // this fails inside when there is a problem
-        baseToken.transfer(this.address, this.sender, amount)
+        const vault = new Vault(this.address, baseToken.token.id)
+        vault.decrementBalance(amount)
+        baseToken.approveUpdateAndTransfer(vault.self, this.sender, amount)
 
         const newSellOrdersRoot = sellOrderWitness.calculateRoot(FIELD_ZERO)
 
@@ -477,8 +476,11 @@ export class Exchange extends SmartContract {
         const baseToken = new Token(baseCurrency)
         const quoteToken = new Token(quoteCurrency)
 
-        baseToken.transfer(this.sender, maker, amount) 
-        // quoteToken.transfer(this.address, this.sender, amount.mul(price)) //todo: fix this
+        baseToken.transfer(this.sender, maker, amount)
+
+        const vault = new Vault(this.address, quoteToken.token.id)
+        vault.decrementBalance(amount.mul(price))
+        quoteToken.approveUpdateAndTransfer(vault.self, this.sender, amount.mul(price))
 
         const newBuyOrdersRoot = buyOrderWitness.calculateRoot(FIELD_ZERO)
 
@@ -524,7 +526,7 @@ export class Exchange extends SmartContract {
         })
 
         const pairsRoot = pairWitness.calculateRoot(pair.hash())
-        this.root.getAndRequireEquals().assertEquals(pairsRoot, Errors.MistakenPair)
+        this.root.requireEquals(pairsRoot)
 
         authoritySignature
             .verify(this.authority.getAndRequireEquals(), [
@@ -542,10 +544,11 @@ export class Exchange extends SmartContract {
         const quoteToken = new Token(quoteCurrency)
         const baseToken = new Token(baseCurrency)
 
-        // this fails inside when there is a problem
         quoteToken.transfer(this.sender, maker, amount.mul(price))
-        // this fails inside when there is a problem
-        // baseToken.transfer(this.address, this.sender, amount)
+
+        const vault = new Vault(this.address, baseToken.token.id)
+        vault.decrementBalance(amount)
+        baseToken.approveUpdateAndTransfer(vault.self, this.sender, amount)
 
         const newSellOrdersRoot = sellOrderWitness.calculateRoot(FIELD_ZERO)
 
