@@ -1,10 +1,12 @@
 import { expose } from 'comlink'
 import { Token, Exchange } from 'xane'
-import { Encoding, PrivateKey } from 'o1js'
+import { Encoding } from 'o1js'
 
-const SAMPLE_PUBLIC_KEY = PrivateKey.random().toPublicKey()
+// const SAMPLE_PUBLIC_KEY = PrivateKey.random().toPublicKey()
 
-const exchangeContract = new Exchange(SAMPLE_PUBLIC_KEY)
+// const exchangeContract = new Exchange(SAMPLE_PUBLIC_KEY)
+
+console.log(Token, Exchange, Encoding)
 
 const worker = {
     async createToken() {
