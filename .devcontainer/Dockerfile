@@ -1,13 +1,11 @@
-FROM node:bookworm-slim
+FROM node:alpine
 
-# Install dependencies.
-RUN apt update -y && apt install -y \
-    git \
-    curl \
-    build-essential
+# Install GIT.
+RUN apk add git
 
+# NOTE: Might be needed in the future.
 # Install Rust language tooling.
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y  
+#RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y  
 
-# Enable PNPM.
-RUN corepack enable pnpm
+# Update NPM to latest version.
+RUN corepack enable npm
