@@ -1,888 +1,493 @@
-import {
-    AccountUpdate,
-    Field,
-    Mina,
-    PrivateKey,
-    PublicKey,
-    Encoding,
-    UInt64,
-    Signature,
-    MerkleTree,
-    Poseidon,
-} from 'o1js'
-import {
-    AUTHORITY_PRIVATE_KEY,
-    Errors,
-    Exchange,
-    ORDERS_HEIGHT,
-    OrderObject,
-    OrderWitness,
-    PAIRS_HEIGHT,
-    PairObject,
-    PairWitness,
-    getErrorMessage,
-} from './Exchange'
+import { AccountUpdate, Encoding, MerkleTree, Mina, PrivateKey, PublicKey, Signature, UInt64 } from 'o1js'
+import { Vault } from './Vault'
 import { Token } from './Token'
+import { Exchange, PAIRS_HEIGHT } from './Exchange'
+import { Database } from './common/database'
 
 const proofsEnabled = false
 
-type Pair = {
-    baseCurrency: PublicKey
-    quoteCurrency: PublicKey
-    buyOrders: Array<OrderObject | null>
-    sellOrders: Array<OrderObject | null>
-}
-
-class TestAuthority {
-    // Stores all the pairs in an array.
-    private pairs: Array<Pair> = []
-    // Stores all the pairs in a tree.
-    private pairsTree: MerkleTree = new MerkleTree(PAIRS_HEIGHT)
-
-    // Stores all the BUY orders of each pair in trees.
-    private buyOrderTreesByPair: Map<number, MerkleTree> = new Map()
-
-    // Stores all the SELL orders of each pair in trees.
-    private sellOrderTreesByPair: Map<number, MerkleTree> = new Map()
-
-    private createSignature(message: Array<Field>): Signature {
-        return Signature.create(AUTHORITY_PRIVATE_KEY, message)
-    }
-
-    private getBuyOrdersTreeRoot(pairIndex: number): Field {
-        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
-
-        if (!buyOrdersTree) throw 'There is no pair at given index.'
-
-        const root = buyOrdersTree.getRoot()
-
-        return root
-    }
-
-    private getSellOrdersTreeRoot(pairIndex: number): Field {
-        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
-
-        if (!sellOrdersTree) throw 'There is no pair at given index.'
-
-        const root = sellOrdersTree.getRoot()
-
-        return root
-    }
-
-    private getBuyOrderWitness(pairIndex: number, orderIndex: number): OrderWitness {
-        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
-
-        if (!buyOrdersTree) throw 'There is no pair at given index.'
-
-        const merkleWitness = buyOrdersTree.getWitness(BigInt(orderIndex))
-
-        const orderWitness = new OrderWitness(merkleWitness)
-
-        return orderWitness
-    }
-
-    private getSellOrderWitness(pairIndex: number, orderIndex: number): OrderWitness {
-        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
-
-        if (!sellOrdersTree) throw 'There is no pair at given index.'
-
-        const merkleWitness = sellOrdersTree.getWitness(BigInt(orderIndex))
-
-        const orderWitness = new OrderWitness(merkleWitness)
-
-        return orderWitness
-    }
-
-    private getPairWitness(pairIndex: number): PairWitness {
-        const merkleWitness = this.pairsTree.getWitness(BigInt(pairIndex))
-        const pairWitness = new PairWitness(merkleWitness)
-
-        return pairWitness
-    }
-
-    private updateBuyOrdersTree(pairIndex: number, orderIndex: number, orderHash: Field) {
-        const buyOrdersTree = this.buyOrderTreesByPair.get(pairIndex)
-
-        if (!buyOrdersTree) throw 'There is no pair at given index.'
-
-        buyOrdersTree.setLeaf(BigInt(orderIndex), orderHash)
-
-        this.buyOrderTreesByPair.set(pairIndex, buyOrdersTree)
-    }
-
-    private updateSellOrdersTree(pairIndex: number, orderIndex: number, orderHash: Field) {
-        const sellOrdersTree = this.sellOrderTreesByPair.get(pairIndex)
-
-        if (!sellOrdersTree) throw 'There is no pair at given index.'
-
-        sellOrdersTree.setLeaf(BigInt(orderIndex), orderHash)
-
-        this.sellOrderTreesByPair.set(pairIndex, sellOrdersTree)
-    }
-
-    private updatePairsTree(pairIndex: number, pairHash: Field) {
-        console.log(`pairs tree before: ${this.pairsTree.getRoot().toString()}`)
-        this.pairsTree.setLeaf(BigInt(pairIndex), pairHash)
-        console.log(`pairs tree after: ${this.pairsTree.getRoot().toString()}`)
-    }
-
-    createPair(baseCurrency: PublicKey, quoteCurrency: PublicKey) {
-        const doesPairAlreadyExist = this.pairs.find((pair) => {
-            return (
-                (pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)) ||
-                (pair.baseCurrency.equals(quoteCurrency) && pair.quoteCurrency.equals(baseCurrency))
-            )
-        })
-        if (doesPairAlreadyExist) throw 'Pair already exists.'
-
-        const pairIndex = this.pairs.length
-
-        const emptyOrdersMerkleTree = new MerkleTree(ORDERS_HEIGHT)
-        const emptyOrdersMerkleRoot = emptyOrdersMerkleTree.getRoot()
-
-        const pair: Pair = {
-            baseCurrency,
-            quoteCurrency,
-            buyOrders: [],
-            sellOrders: [],
-        }
-
-        this.pairs.push(pair)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            emptyOrdersMerkleRoot,
-            emptyOrdersMerkleRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-        this.buyOrderTreesByPair.set(pairIndex, emptyOrdersMerkleTree)
-        this.sellOrderTreesByPair.set(pairIndex, emptyOrdersMerkleTree)
-
-        return {
-            pairWitness: this.getPairWitness(pairIndex),
-            authoritySignature: this.createSignature([
-                ...pair.baseCurrency.toFields(),
-                ...pair.quoteCurrency.toFields(),
-                new Field(pairIndex),
-            ]),
-        }
-    }
-
-    placeBuyOrder(amount: UInt64, price: UInt64, baseCurrency: PublicKey, quoteCurrency: PublicKey, maker: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const orderIndex = pair.buyOrders.length
-
-        const buyOrderWitness = this.getBuyOrderWitness(pairIndex, orderIndex)
-        const sellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-        const pairWitness = this.getPairWitness(pairIndex)
-        const authoritySignature = this.createSignature([
-            ...amount.toFields(),
-            ...price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrderWitness.toFields(),
-            ...sellOrdersRoot.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        const order: OrderObject = {
-            maker,
-            amount,
-            price,
-        }
-
-        pair.buyOrders[orderIndex] = order
-
-        const orderHash = Poseidon.hash([...maker.toFields(), ...amount.toFields(), ...price.toFields()])
-
-        console.log(`before buy order ${orderIndex} is placed: `, this.pairsTree.getRoot().toString())
-
-        this.updateBuyOrdersTree(pairIndex, orderIndex, orderHash)
-        const updatedBuyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            updatedBuyOrdersRoot,
-            sellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        console.log(`updated after buy order ${orderIndex} is placed: `, this.pairsTree.getRoot().toString())
-
-        return {
-            buyOrderWitness: buyOrderWitness,
-            sellOrdersRoot: sellOrdersRoot,
-            pairWitness: pairWitness,
-            authoritySignature,
-        }
-    }
-
-    placeSellOrder(amount: UInt64, price: UInt64, baseCurrency: PublicKey, quoteCurrency: PublicKey, maker: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const orderIndex = pair.sellOrders.length
-
-        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderIndex)
-        const pairWitness = this.getPairWitness(pairIndex)
-        const authoritySignature = this.createSignature([
-            ...amount.toFields(),
-            ...price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrdersRoot.toFields(),
-            ...sellOrderWitness.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        const order: OrderObject = {
-            maker,
-            amount,
-            price,
-        }
-
-        pair.sellOrders[orderIndex] = order
-
-        const orderHash = Poseidon.hash([...maker.toFields(), ...amount.toFields(), ...price.toFields()])
-
-        this.updateSellOrdersTree(pairIndex, orderIndex, orderHash)
-        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            buyOrdersRoot,
-            updatedSellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        return {
-            buyOrdersRoot: buyOrdersRoot,
-            sellOrderWitness: sellOrderWitness,
-            pairWitness: pairWitness,
-            authoritySignature,
-        }
-    }
-
-    executeBuyOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const order = pair.buyOrders.at(orderId)
-
-        if (!order) throw 'Order ID is invalid.'
-
-        const buyOrderWitness = this.getBuyOrderWitness(pairIndex, orderId)
-        const sellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-        const pairWitness = this.getPairWitness(pairIndex)
-
-        const authoritySignature = this.createSignature([
-            ...order.maker.toFields(),
-            ...order.amount.toFields(),
-            ...order.price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrderWitness.toFields(),
-            ...sellOrdersRoot.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        pair.buyOrders[orderId] = null
-
-        this.updateBuyOrdersTree(pairIndex, orderId, Field(0))
-        const updatedBuyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            updatedBuyOrdersRoot,
-            sellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        return {
-            maker: order.maker,
-            amount: order.amount,
-            price: order.price,
-            buyOrderWitness,
-            sellOrdersRoot,
-            pairWitness,
-            authoritySignature,
-        }
-    }
-
-    executeSellOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const order = pair.sellOrders.at(orderId)
-
-        if (!order) throw 'Order ID is invalid.'
-
-        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderId)
-        const pairWitness = this.getPairWitness(pairIndex)
-
-        const authoritySignature = this.createSignature([
-            ...order.maker.toFields(),
-            ...order.amount.toFields(),
-            ...order.price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrdersRoot.toFields(),
-            ...sellOrderWitness.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        pair.sellOrders[orderId] = null
-
-        this.updateSellOrdersTree(pairIndex, orderId, Field(0))
-        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            buyOrdersRoot,
-            updatedSellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        return {
-            maker: order.maker,
-            amount: order.amount,
-            price: order.price,
-            buyOrdersRoot,
-            sellOrderWitness,
-            pairWitness,
-            authoritySignature,
-        }
-    }
-
-    cancelBuyOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const order = pair.buyOrders.at(orderId)
-
-        if (!order) throw 'Order ID is invalid.'
-
-        console.log(`cancel buy order ${orderId} before: `, this.pairsTree.getRoot().toString())
-
-        const buyOrderWitness = this.getBuyOrderWitness(pairIndex, orderId)
-        const sellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-        const pairWitness = this.getPairWitness(pairIndex)
-
-        console.log(
-            'calculated before: ',
-            pairWitness
-                .calculateRoot(
-                    Poseidon.hash([
-                        ...baseCurrency.toFields(),
-                        ...quoteCurrency.toFields(),
-                        buyOrderWitness.calculateRoot(
-                            Poseidon.hash([
-                                ...order.maker.toFields(),
-                                ...order.amount.toFields(),
-                                ...order.price.toFields(),
-                            ])
-                        ),
-                        sellOrdersRoot,
-                    ])
-                )
-                .toString()
-        )
-
-        const authoritySignature = this.createSignature([
-            ...order.amount.toFields(),
-            ...order.price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrderWitness.toFields(),
-            ...sellOrdersRoot.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        pair.buyOrders[orderId] = null
-
-        this.updateBuyOrdersTree(pairIndex, orderId, Field(0))
-        const updatedBuyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            updatedBuyOrdersRoot,
-            sellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        return {
-            price: order.price,
-            amount: order.amount,
-            buyOrderWitness,
-            sellOrdersRoot,
-            pairWitness,
-            authoritySignature,
-        }
-    }
-
-    cancelSellOrder(orderId: number, baseCurrency: PublicKey, quoteCurrency: PublicKey) {
-        const pairIndex = this.pairs.findIndex(
-            (pair) => pair.baseCurrency.equals(baseCurrency) && pair.quoteCurrency.equals(quoteCurrency)
-        )
-        if (pairIndex === -1) throw 'Pair does not exist'
-
-        const pair = this.pairs[pairIndex]
-        const order = pair.sellOrders.at(orderId)
-
-        if (!order) throw 'Order ID is invalid.'
-
-        const sellOrderWitness = this.getSellOrderWitness(pairIndex, orderId)
-        const buyOrdersRoot = this.getBuyOrdersTreeRoot(pairIndex)
-        const pairWitness = this.getPairWitness(pairIndex)
-
-        const authoritySignature = this.createSignature([
-            ...order.amount.toFields(),
-            ...order.price.toFields(),
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            ...buyOrdersRoot.toFields(),
-            ...sellOrderWitness.toFields(),
-            ...pairWitness.toFields(),
-        ])
-
-        pair.sellOrders[orderId] = null
-
-        this.updateSellOrdersTree(pairIndex, orderId, Field(0))
-        const updatedSellOrdersRoot = this.getSellOrdersTreeRoot(pairIndex)
-
-        const pairHash = Poseidon.hash([
-            ...baseCurrency.toFields(),
-            ...quoteCurrency.toFields(),
-            buyOrdersRoot,
-            updatedSellOrdersRoot,
-        ])
-
-        this.updatePairsTree(pairIndex, pairHash)
-
-        return {
-            price: order.price,
-            amount: order.amount,
-            buyOrdersRoot,
-            sellOrderWitness,
-            pairWitness,
-            authoritySignature,
-        }
-    }
-}
-
-const testAuthority = new TestAuthority()
-
-describe('Exchange Contract', () => {
+describe('token vault test', () => {
     const Local = Mina.LocalBlockchain({ proofsEnabled })
     Mina.setActiveInstance(Local)
 
-    const deployerPrivateKey: PrivateKey = Local.testAccounts[0].privateKey
-    const deployerPublicKey: PublicKey = Local.testAccounts[0].publicKey
+    const database = new Database()
 
-    const user1PrivateKey: PrivateKey = Local.testAccounts[1].privateKey
-    const user1PublicKey: PublicKey = Local.testAccounts[1].publicKey
+    const czPrivkey = Local.testAccounts[0].privateKey
+    const czPubkey = Local.testAccounts[0].publicKey
 
-    const user2PrivateKey: PrivateKey = Local.testAccounts[2].privateKey
-    const user2PublicKey: PublicKey = Local.testAccounts[2].publicKey
+    const satoshiPrivkey = Local.testAccounts[1].privateKey
+    const satoshiPubkey = Local.testAccounts[1].publicKey
 
-    const exchangeZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const exchangeZkAppPublicKey: PublicKey = exchangeZkAppPrivateKey.toPublicKey()
-    const exchange: Exchange = new Exchange(exchangeZkAppPublicKey)
+    const fedPrivkey = Local.testAccounts[2].privateKey
+    const fedPubkey = Local.testAccounts[2].publicKey
 
-    const tokenOneZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const tokenOneZkAppPublicKey: PublicKey = tokenOneZkAppPrivateKey.toPublicKey()
-    const tokenOne: Token = new Token(tokenOneZkAppPublicKey)
+    const exchangePrivkey = PrivateKey.random()
+    const exchangePubkey = exchangePrivkey.toPublicKey()
+    const exchangeZkapp = new Exchange(exchangePubkey)
 
-    const tokenTwoZkAppPrivateKey: PrivateKey = PrivateKey.random()
-    const tokenTwoZkAppPublicKey: PublicKey = tokenTwoZkAppPrivateKey.toPublicKey()
-    const tokenTwo: Token = new Token(tokenTwoZkAppPublicKey)
+    const btcTokenPrivkey = PrivateKey.random()
+    const btcTokenPubkey = btcTokenPrivkey.toPublicKey()
+    const btcTokenZkapp = new Token(btcTokenPubkey)
 
-    let exchangeZkAppverificationKey: { data: string; hash: Field }
-    let tokenZkAppverificationKey: { data: string; hash: Field }
+    const usdTokenPrivkey = PrivateKey.random()
+    const usdTokenPubkey = usdTokenPrivkey.toPublicKey()
+    const usdTokenZkapp = new Token(usdTokenPubkey)
+
+    const btcVaultZkapp = new Vault(exchangePubkey, btcTokenZkapp.token.id)
+    const usdVaultZkapp = new Vault(exchangePubkey, usdTokenZkapp.token.id)
+
+    const BTC_SYMBOL = Encoding.stringToFields('BTC')[0]
+    const BTC_DECIMALS = UInt64.from(6)
+    const BTC_MAX_SUPPLY = UInt64.from(21_000_000_000_000n)
+    const BTC_MINT_AMOUNT = UInt64.from(10_000_000_000_000n)
+
+    const USD_SYMBOL = Encoding.stringToFields('USD')[0]
+    const USD_DECIMALS = UInt64.from(2)
+    const USD_MAX_SUPPLY = UInt64.from(999_000_000_000_000_000n)
+    const USD_MINT_AMOUNT = UInt64.from(999_000_000_000_000_000n)
+
+    const BUY_ORDER_AMOUNT = UInt64.from(1_000_000n)
+    const BUY_ORDER_PRICE = UInt64.from(69_000_00n)
+
+    const SELL_ORDER_AMOUNT = UInt64.from(2_000_000n)
+    const SELL_ORDER_PRICE = UInt64.from(69_500_00n)
 
     beforeAll(async () => {
-        // we're compiling both contracts in parallel to finish earlier
-        const results = await Promise.all([Exchange.compile(), Token.compile()])
-
-        exchangeZkAppverificationKey = results[0].verificationKey
-        tokenZkAppverificationKey = results[1].verificationKey
-    })
-
-    it('can create exchange', async () => {
-        const tx = await Mina.transaction(deployerPublicKey, () => {
-            AccountUpdate.fundNewAccount(deployerPublicKey)
-            exchange.deploy({
-                verificationKey: exchangeZkAppverificationKey,
-                zkappKey: exchangeZkAppPrivateKey,
-            })
-        })
-
-        await tx.prove()
-        await tx.sign([deployerPrivateKey, exchangeZkAppPrivateKey]).send()
-    })
-
-    it('can create ONE token', async () => {
-        const symbol = Encoding.stringToFields('ONE')[0]
-        const decimals = UInt64.from(8)
-        const maxSupply = UInt64.from(21_000_000)
-
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
-
-            tokenOne.deploy({
-                verificationKey: tokenZkAppverificationKey,
-                zkappKey: tokenOneZkAppPrivateKey,
-            })
-
-            tokenOne.initialize(symbol, decimals, maxSupply)
-        })
-
-        await tx.prove()
-        await tx.sign([user1PrivateKey, tokenOneZkAppPrivateKey]).send()
-    })
-
-    it('can create TWO token', async () => {
-        const symbol = Encoding.stringToFields('TWO')[0]
-        const decimals = UInt64.from(5)
-        const maxSupply = UInt64.from(1_000_000_000)
-
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
-
-            tokenTwo.deploy({
-                verificationKey: tokenZkAppverificationKey,
-                zkappKey: tokenTwoZkAppPrivateKey,
-            })
-
-            tokenTwo.initialize(symbol, decimals, maxSupply)
-        })
-
-        await tx.prove()
-        await tx.sign([user2PrivateKey, tokenTwoZkAppPrivateKey]).send()
-    })
-
-    it('can mint ONE token', async () => {
-        const amount = UInt64.from(21_000_000)
-
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
-
-            tokenOne.mint(user1PublicKey, amount)
-        })
-
-        await tx.prove()
-        await tx.sign([user1PrivateKey, tokenOneZkAppPrivateKey]).send()
-    })
-
-    it('can mint TWO token', async () => {
-        const amount = UInt64.from(1_000_000_000)
-
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
-
-            tokenTwo.mint(user2PublicKey, amount)
-        })
-
-        await tx.prove()
-        await tx.sign([user2PrivateKey, tokenTwoZkAppPrivateKey]).send()
-    })
-
-    it('can create pairs', async () => {
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
-
-        const { pairWitness, authoritySignature } = testAuthority.createPair(baseCurrency, quoteCurrency)
-
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            exchange.createPair(baseCurrency, quoteCurrency, pairWitness, authoritySignature)
-        })
-
-        await tx.prove()
-        await tx.sign([user1PrivateKey]).send()
-    })
-
-    it("can't create pairs when pairs already exists", async () => {
-        try {
-            const baseCurrency = tokenOne.address
-            const quoteCurrency = tokenTwo.address
-
-            const { pairWitness, authoritySignature } = testAuthority.createPair(baseCurrency, quoteCurrency)
-
-            const tx = await Mina.transaction(user1PublicKey, () => {
-                exchange.createPair(baseCurrency, quoteCurrency, pairWitness, authoritySignature)
-            })
-
-            await tx.prove()
-            await tx.sign([user1PrivateKey]).send()
-
-            throw 'Must have failed!'
-        } catch (error) {
-            expect(error).toEqual('Pair already exists.')
+        if (proofsEnabled) {
+            await Exchange.compile()
+            await Vault.compile()
+            await Token.compile()
         }
     })
 
-    it('can place BUY orders', async () => {
-        const amount = new UInt64(400)
-        const price = new UInt64(21)
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
+    it('can deploy and initialize exchange', async () => {
+        const tx = await Mina.transaction(czPubkey, () => {
+            AccountUpdate.fundNewAccount(czPubkey)
+            exchangeZkapp.deploy()
+            exchangeZkapp.initialize(czPubkey)
+        })
 
-        const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature } = testAuthority.placeBuyOrder(
-            amount,
-            price,
-            baseCurrency,
-            quoteCurrency,
-            user2PublicKey
-        )
+        await tx.prove()
 
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
+        tx.sign([czPrivkey, exchangePrivkey])
 
-            exchange.placeBuyOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
+        await tx.send()
+
+        exchangeZkapp.authority.getAndRequireEquals().assertEquals(czPubkey)
+        exchangeZkapp.root.getAndRequireEquals().assertEquals(new MerkleTree(PAIRS_HEIGHT).getRoot())
+    })
+
+    it('can deploy and initialize BTC tokens', async () => {
+        const tx = await Mina.transaction(satoshiPubkey, () => {
+            AccountUpdate.fundNewAccount(satoshiPubkey)
+            btcTokenZkapp.deploy()
+            btcTokenZkapp.initialize(BTC_SYMBOL, BTC_DECIMALS, BTC_MAX_SUPPLY)
+        })
+
+        await tx.prove()
+
+        tx.sign([satoshiPrivkey, btcTokenPrivkey])
+
+        await tx.send()
+
+        btcTokenZkapp.symbol.getAndRequireEquals().assertEquals(BTC_SYMBOL)
+        btcTokenZkapp.decimals.getAndRequireEquals().assertEquals(BTC_DECIMALS)
+        btcTokenZkapp.maxSupply.getAndRequireEquals().assertEquals(BTC_MAX_SUPPLY)
+        btcTokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(UInt64.zero)
+    })
+
+    it('can deploy and initialize USD tokens', async () => {
+        const tx = await Mina.transaction(fedPubkey, () => {
+            AccountUpdate.fundNewAccount(fedPubkey)
+            usdTokenZkapp.deploy()
+            usdTokenZkapp.initialize(USD_SYMBOL, USD_DECIMALS, USD_MAX_SUPPLY)
+        })
+
+        await tx.prove()
+
+        tx.sign([fedPrivkey, usdTokenPrivkey])
+
+        await tx.send()
+
+        usdTokenZkapp.symbol.getAndRequireEquals().assertEquals(USD_SYMBOL)
+        usdTokenZkapp.decimals.getAndRequireEquals().assertEquals(USD_DECIMALS)
+        usdTokenZkapp.maxSupply.getAndRequireEquals().assertEquals(USD_MAX_SUPPLY)
+        usdTokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(UInt64.zero)
+    })
+
+    it('can mint BTC tokens', async () => {
+        const tx = await Mina.transaction(satoshiPubkey, () => {
+            AccountUpdate.fundNewAccount(satoshiPubkey)
+            btcTokenZkapp.mint(satoshiPubkey, BTC_MINT_AMOUNT)
+        })
+
+        await tx.prove()
+
+        tx.sign([satoshiPrivkey])
+
+        await tx.send()
+
+        Mina.getBalance(satoshiPubkey, btcTokenZkapp.token.id).assertEquals(BTC_MINT_AMOUNT)
+        btcTokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(BTC_MINT_AMOUNT)
+    })
+
+    it('can mint USD tokens', async () => {
+        const tx = await Mina.transaction(fedPubkey, () => {
+            AccountUpdate.fundNewAccount(fedPubkey)
+            usdTokenZkapp.mint(fedPubkey, USD_MINT_AMOUNT)
+        })
+
+        await tx.prove()
+
+        tx.sign([fedPrivkey])
+
+        await tx.send()
+
+        Mina.getBalance(fedPubkey, usdTokenZkapp.token.id).assertEquals(USD_MINT_AMOUNT)
+        usdTokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(USD_MINT_AMOUNT)
+    })
+
+    it('can deploy BTC vault', async () => {
+        const tx = await Mina.transaction(satoshiPubkey, () => {
+            AccountUpdate.fundNewAccount(satoshiPubkey)
+            btcVaultZkapp.deploy()
+            btcTokenZkapp.approveUpdate(btcVaultZkapp.self)
+        })
+
+        await tx.prove()
+
+        tx.sign([satoshiPrivkey, exchangePrivkey])
+
+        await tx.send()
+    })
+
+    it('can deploy USD vault', async () => {
+        const tx = await Mina.transaction(fedPubkey, () => {
+            AccountUpdate.fundNewAccount(fedPubkey)
+            usdVaultZkapp.deploy()
+            usdTokenZkapp.approveUpdate(usdVaultZkapp.self)
+        })
+
+        await tx.prove()
+
+        tx.sign([fedPrivkey, exchangePrivkey])
+
+        await tx.send()
+    })
+
+    it('can create BTC/USD pair', async () => {
+        database.addPair({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const pairWitness = database.getPairWitness({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const signature = Signature.create(czPrivkey, [
+            ...btcTokenPubkey.toFields(),
+            ...usdTokenPubkey.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const tx = await Mina.transaction(satoshiPubkey, () => {
+            exchangeZkapp.createPair(btcTokenPubkey, usdTokenPubkey, pairWitness, signature)
+        })
+
+        await tx.prove()
+
+        tx.sign([satoshiPrivkey])
+
+        await tx.send()
+    })
+
+    it('can place orders', async () => {
+        const pairWitness = database.getPairWitness({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const orderIndex = database.addOrder({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            amount: BUY_ORDER_AMOUNT.toBigInt(),
+            price: BUY_ORDER_PRICE.toBigInt(),
+            maker: fedPubkey.toBase58(),
+        })
+
+        const buyOrderWitness = database.getOrderWitness({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex,
+        })
+
+        const sellOrdersRoot = database.getOrdersRoot({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const signature = Signature.create(czPrivkey, [
+            ...BUY_ORDER_AMOUNT.toFields(),
+            ...BUY_ORDER_PRICE.toFields(),
+            ...btcTokenPubkey.toFields(),
+            ...usdTokenPubkey.toFields(),
+            ...buyOrderWitness.toFields(),
+            ...sellOrdersRoot.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const tx = await Mina.transaction(fedPubkey, () => {
+            exchangeZkapp.placeBuyOrder(
+                BUY_ORDER_AMOUNT,
+                BUY_ORDER_PRICE,
+                btcTokenPubkey,
+                usdTokenPubkey,
                 buyOrderWitness,
                 sellOrdersRoot,
                 pairWitness,
-                authoritySignature
+                signature
             )
         })
 
         await tx.prove()
-        await tx.sign([user2PrivateKey]).send()
+
+        tx.sign([fedPrivkey])
+
+        await tx.send()
+
+        Mina.getBalance(fedPubkey, usdTokenZkapp.token.id).assertEquals(
+            USD_MINT_AMOUNT.sub(BUY_ORDER_AMOUNT.mul(BUY_ORDER_PRICE))
+        )
+        Mina.getBalance(exchangePubkey, usdTokenZkapp.token.id).assertEquals(BUY_ORDER_AMOUNT.mul(BUY_ORDER_PRICE))
     })
 
-    it('can place SELL orders', async () => {
-        const amount = new UInt64(100)
-        const price = new UInt64(50)
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
+    it('can cancel orders', async () => {
+        const pairWitness = database.getPairWitness({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
 
-        const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } = testAuthority.placeSellOrder(
-            amount,
-            price,
-            baseCurrency,
-            quoteCurrency,
-            user1PublicKey
-        )
+        const buyOrderWitness = database.getOrderWitness({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex: 0,
+        })
 
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
+        database.removeOrder({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex: 0,
+        })
 
-            exchange.placeSellOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
+        const sellOrdersRoot = database.getOrdersRoot({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const signature = Signature.create(czPrivkey, [
+            ...BUY_ORDER_AMOUNT.toFields(),
+            ...BUY_ORDER_PRICE.toFields(),
+            ...btcTokenPubkey.toFields(),
+            ...usdTokenPubkey.toFields(),
+            ...buyOrderWitness.toFields(),
+            ...sellOrdersRoot.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const tx = await Mina.transaction(fedPubkey, () => {
+            exchangeZkapp.cancelBuyOrder(
+                BUY_ORDER_AMOUNT,
+                BUY_ORDER_PRICE,
+                btcTokenPubkey,
+                usdTokenPubkey,
+                buyOrderWitness,
+                sellOrdersRoot,
+                pairWitness,
+                signature
+            )
+        })
+
+        await tx.prove()
+
+        tx.sign([fedPrivkey])
+
+        await tx.send()
+
+        Mina.getBalance(fedPubkey, usdTokenZkapp.token.id).assertEquals(USD_MINT_AMOUNT)
+        Mina.getBalance(exchangePubkey, usdTokenZkapp.token.id).assertEquals(UInt64.zero)
+    })
+
+    it('can place orders', async () => {
+        const pairWitness = database.getPairWitness({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const orderIndex = database.addOrder({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            amount: SELL_ORDER_AMOUNT.toBigInt(),
+            price: SELL_ORDER_PRICE.toBigInt(),
+            maker: satoshiPubkey.toBase58(),
+        })
+
+        const buyOrdersRoot = database.getOrdersRoot({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
+
+        const sellOrderWitness = database.getOrderWitness({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex,
+        })
+
+        const signature = Signature.create(czPrivkey, [
+            ...SELL_ORDER_AMOUNT.toFields(),
+            ...SELL_ORDER_PRICE.toFields(),
+            ...btcTokenPubkey.toFields(),
+            ...usdTokenPubkey.toFields(),
+            ...buyOrdersRoot.toFields(),
+            ...sellOrderWitness.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const tx1 = await Mina.transaction(satoshiPubkey, () => {
+            AccountUpdate.fundNewAccount(satoshiPubkey)
+            const update = AccountUpdate.createSigned(satoshiPubkey, usdTokenZkapp.token.id)
+            usdTokenZkapp.approveUpdate(update)
+        })
+
+        await tx1.prove()
+
+        tx1.sign([satoshiPrivkey])
+
+        await tx1.send()
+
+        const tx2 = await Mina.transaction(satoshiPubkey, () => {
+            exchangeZkapp.placeSellOrder(
+                SELL_ORDER_AMOUNT,
+                SELL_ORDER_PRICE,
+                btcTokenPubkey,
+                usdTokenPubkey,
                 buyOrdersRoot,
                 sellOrderWitness,
                 pairWitness,
-                authoritySignature
+                signature
             )
         })
 
-        await tx.prove()
-        await tx.sign([user1PrivateKey]).send()
+        await tx2.prove()
+
+        tx2.sign([satoshiPrivkey])
+
+        await tx2.send()
+
+        Mina.getBalance(satoshiPubkey, btcTokenZkapp.token.id).assertEquals(BTC_MINT_AMOUNT.sub(SELL_ORDER_AMOUNT))
+        Mina.getBalance(exchangePubkey, btcTokenZkapp.token.id).assertEquals(SELL_ORDER_AMOUNT)
     })
 
-    it('can execute BUY orders', async () => {
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
-        const orderId = 0
-
-        const { maker, amount, price, buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature } =
-            testAuthority.executeBuyOrder(orderId, baseCurrency, quoteCurrency)
-
-        const tx = await Mina.transaction(user1PublicKey, () => {
-            AccountUpdate.fundNewAccount(user1PublicKey)
-
-            exchange.executeBuyOrder(
-                maker,
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
-                buyOrderWitness,
-                sellOrdersRoot,
-                pairWitness,
-                authoritySignature
-            )
+    it('can execute orders', async () => {
+        const pairWitness = database.getPairWitness({
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
         })
 
-        await tx.prove()
-        await tx.sign([user1PrivateKey]).send()
-    })
+        const orderToExecute = database.getOrder({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex: 0,
+        })
 
-    it('can execute SELL orders', async () => {
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
-        const orderId = 0
+        const buyOrdersRoot = database.getOrdersRoot({
+            side: 'BUY',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+        })
 
-        const { maker, amount, price, buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } =
-            testAuthority.executeSellOrder(orderId, baseCurrency, quoteCurrency)
+        const sellOrderWitness = database.getOrderWitness({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex: 0,
+        })
 
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            AccountUpdate.fundNewAccount(user2PublicKey)
+        database.removeOrder({
+            side: 'SELL',
+            baseCurrency: btcTokenPubkey.toBase58(),
+            quoteCurrency: usdTokenPubkey.toBase58(),
+            orderIndex: 0,
+        })
 
-            exchange.executeSellOrder(
+        const maker = PublicKey.fromBase58(orderToExecute.maker)
+        const amount = UInt64.from(orderToExecute.amount)
+        const price = UInt64.from(orderToExecute.price)
+
+        const signature = Signature.create(czPrivkey, [
+            ...maker.toFields(),
+            ...amount.toFields(),
+            ...price.toFields(),
+            ...btcTokenPubkey.toFields(),
+            ...usdTokenPubkey.toFields(),
+            ...buyOrdersRoot.toFields(),
+            ...sellOrderWitness.toFields(),
+            ...pairWitness.toFields(),
+        ])
+
+        const tx1 = await Mina.transaction(fedPubkey, () => {
+            AccountUpdate.fundNewAccount(fedPubkey)
+            const update = AccountUpdate.createSigned(fedPubkey, btcTokenZkapp.token.id)
+            btcTokenZkapp.approveUpdate(update)
+        })
+
+        await tx1.prove()
+
+        tx1.sign([fedPrivkey])
+
+        await tx1.send()
+
+        const tx2 = await Mina.transaction(fedPubkey, () => {
+            exchangeZkapp.executeSellOrder(
                 maker,
                 amount,
                 price,
-                baseCurrency,
-                quoteCurrency,
+                btcTokenPubkey,
+                usdTokenPubkey,
                 buyOrdersRoot,
                 sellOrderWitness,
                 pairWitness,
-                authoritySignature
+                signature
             )
         })
 
-        await tx.prove()
-        await tx.sign([user2PrivateKey]).send()
-    })
+        await tx2.prove()
 
-    it('can place cancalable BUY orders', async () => {
-        const amount = new UInt64(400)
-        const price = new UInt64(21)
-        const baseCurrency = tokenOne.address
-        const quoteCurrency = tokenTwo.address
+        tx2.sign([fedPrivkey])
 
-        const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature } = testAuthority.placeBuyOrder(
-            amount,
-            price,
-            baseCurrency,
-            quoteCurrency,
-            user2PublicKey
+        await tx2.send()
+
+        console.log(tx2.transaction.accountUpdates.length)
+
+        Mina.getBalance(satoshiPubkey, btcTokenZkapp.token.id).assertEquals(BTC_MINT_AMOUNT.sub(SELL_ORDER_AMOUNT))
+        Mina.getBalance(exchangePubkey, btcTokenZkapp.token.id).assertEquals(UInt64.zero)
+        Mina.getBalance(fedPubkey, btcTokenZkapp.token.id).assertEquals(SELL_ORDER_AMOUNT)
+
+        Mina.getBalance(satoshiPubkey, usdTokenZkapp.token.id).assertEquals(SELL_ORDER_AMOUNT.mul(SELL_ORDER_PRICE))
+        Mina.getBalance(exchangePubkey, usdTokenZkapp.token.id).assertEquals(UInt64.zero)
+        Mina.getBalance(fedPubkey, usdTokenZkapp.token.id).assertEquals(
+            USD_MINT_AMOUNT.sub(SELL_ORDER_AMOUNT.mul(SELL_ORDER_PRICE))
         )
-
-        const tx = await Mina.transaction(user2PublicKey, () => {
-            exchange.placeBuyOrder(
-                amount,
-                price,
-                baseCurrency,
-                quoteCurrency,
-                buyOrderWitness,
-                sellOrdersRoot,
-                pairWitness,
-                authoritySignature
-            )
-        })
-
-        await tx.prove()
-        await tx.sign([user2PrivateKey]).send()
     })
-
-    //     it('can cancel BUY orders', async () => {
-    //         console.log('on-chain: ', exchange.root.get().toString())
-    //         const orderId = 1
-    //         const baseCurrency = tokenOne.address
-    //         const quoteCurrency = tokenTwo.address
-    //         const { buyOrderWitness, sellOrdersRoot, pairWitness, authoritySignature, amount, price } =
-    //             testAuthority.cancelBuyOrder(orderId, baseCurrency, quoteCurrency)
-
-    //         const tx = await Mina.transaction(user2PublicKey, () => {
-    //             exchange.cancelBuyOrder(
-    //                 amount,
-    //                 price,
-    //                 baseCurrency,
-    //                 quoteCurrency,
-    //                 buyOrderWitness,
-    //                 sellOrdersRoot,
-    //                 pairWitness,
-    //                 authoritySignature
-    //             )
-    //         })
-
-    //         await tx.prove()
-    //         await tx.sign([user2PrivateKey]).send()
-    //     })
-
-    //     it('can place cancalable SELL orders', async () => {
-    //         const amount = new UInt64(10)
-    //         const price = new UInt64(50)
-    //         const baseCurrency = tokenOne.address
-    //         const quoteCurrency = tokenTwo.address
-
-    //         const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature } = testAuthority.placeSellOrder(
-    //             amount,
-    //             price,
-    //             baseCurrency,
-    //             quoteCurrency,
-    //             user1PublicKey
-    //         )
-
-    //         const tx = await Mina.transaction(user1PublicKey, () => {
-    //             exchange.placeSellOrder(
-    //                 amount,
-    //                 price,
-    //                 baseCurrency,
-    //                 quoteCurrency,
-    //                 buyOrdersRoot,
-    //                 sellOrderWitness,
-    //                 pairWitness,
-    //                 authoritySignature
-    //             )
-    //         })
-
-    //         await tx.prove()
-    //         await tx.sign([user1PrivateKey]).send()
-    //     })
-
-    //     it('can cancel SELL orders', async () => {
-    //         console.log('on-chain: ', exchange.root.get().toString())
-    //         const orderId = 1
-    //         const baseCurrency = tokenOne.address
-    //         const quoteCurrency = tokenTwo.address
-    //         const { buyOrdersRoot, sellOrderWitness, pairWitness, authoritySignature, amount, price } =
-    //             testAuthority.cancelSellOrder(orderId, baseCurrency, quoteCurrency)
-
-    //         const tx = await Mina.transaction(user1PublicKey, () => {
-    //             exchange.cancelSellOrder(
-    //                 amount,
-    //                 price,
-    //                 baseCurrency,
-    //                 quoteCurrency,
-    //                 buyOrdersRoot,
-    //                 sellOrderWitness,
-    //                 pairWitness,
-    //                 authoritySignature
-    //             )
-    //         })
-
-    //         await tx.prove()
-    //         await tx.sign([user1PrivateKey]).send()
-    //     })
 })
