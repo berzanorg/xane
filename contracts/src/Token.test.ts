@@ -1,21 +1,4 @@
-import {
-    AccountUpdate,
-    DeployArgs,
-    Encoding,
-    Experimental,
-    Field,
-    Int64,
-    Mina,
-    Permissions,
-    PrivateKey,
-    PublicKey,
-    SmartContract,
-    State,
-    UInt64,
-    VerificationKey,
-    method,
-    state,
-} from 'o1js'
+import { AccountUpdate, Encoding, Field, Mina, PrivateKey, UInt64 } from 'o1js'
 import { Token } from './Token'
 
 const proofsEnabled = false
@@ -38,7 +21,9 @@ describe('token test', () => {
     const AMOUNT_TRANSFER = UInt64.from(7_000_000_000_000_000n)
 
     beforeAll(async () => {
-        await Token.compile()
+        if (proofsEnabled) {
+            await Token.compile()
+        }
     })
 
     it('can deploy tokens', async () => {

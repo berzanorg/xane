@@ -1,4 +1,4 @@
-import { Account, AccountUpdate, Encoding, Mina, PrivateKey, UInt64 } from 'o1js'
+import { AccountUpdate, Encoding, Mina, PrivateKey, UInt64 } from 'o1js'
 import { Vault } from './Vault'
 import { Token } from './Token'
 
@@ -27,8 +27,10 @@ describe('token vault test', () => {
     const AMOUNT_WITHDRAW = UInt64.from(3_000_000_000_000_000n)
 
     beforeAll(async () => {
-        await Vault.compile()
-        await Token.compile()
+        if (proofsEnabled) {
+            await Vault.compile()
+            await Token.compile()
+        }
     })
 
     it('can deploy tokens', async () => {
