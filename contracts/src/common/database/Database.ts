@@ -1,7 +1,7 @@
-import { MerkleTree, PublicKey } from 'o1js'
-import { ORDERS_HEIGHT, PAIRS_HEIGHT } from 'xane'
-import { Pair } from './Pair'
-import { DatabaseError } from './DatabaseError'
+import { MerkleTree } from 'o1js'
+import { Pair } from './Pair.js'
+import { DatabaseError } from './DatabaseError.js'
+import { PAIRS_HEIGHT } from '../../Exchange.js'
 
 interface FindPairIndex {
     baseCurrency: string

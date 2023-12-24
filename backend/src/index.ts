@@ -1,7 +1,6 @@
 import { App } from '@tinyhttp/app'
 import { PrivateKey } from 'o1js'
-import { Exchange } from 'xane'
-import { Database } from './database'
+import { Database, Exchange } from 'xane'
 
 const SAMPLE_PUBLIC_KEY = PrivateKey.random().toPublicKey()
 

@@ -1,6 +1,6 @@
 import { Field, MerkleTree, Poseidon, PublicKey } from 'o1js'
-import { Order } from './Order'
-import { ORDERS_HEIGHT } from 'xane'
+import { Order } from './Order.js'
+import { ORDERS_HEIGHT } from '../../Exchange.js'
 
 interface AddOrder {
     side: 'BUY' | 'SELL'
