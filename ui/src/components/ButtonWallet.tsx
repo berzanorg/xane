@@ -20,7 +20,7 @@ export default function ButtonWallet() {
             fallback={
                 <button
                     onClick={connect}
-                    class="bg-blue-500 hover:bg-blue-400 h-10 px-6 rounded-full font-semibold text-lg"
+                    class="bg-blue-500 hover:bg-blue-400 h-9 px-5 rounded-full font-semibold text-lg"
                 >
                     Connect
                 </button>
@@ -28,7 +28,7 @@ export default function ButtonWallet() {
         >
             <button
                 onClick={disconnect}
-                class="bg-blue-500 hover:bg-blue-400 h-10 px-6 rounded-full font-semibold text-lg"
+                class="bg-blue-500 hover:bg-blue-400 h-9 px-5 rounded-full font-semibold text-lg"
             >
                 Disconnect
             </button>

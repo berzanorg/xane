@@ -6,11 +6,29 @@ import Layout from '../layouts/Layout.astro'
     <div class="flex flex-col py-4 sm:py-10 md:py-14 lg:py-20 xl:py-24">
         <div class="flex flex-col gap-2 sm:gap-3 md:gap-4 lg:gap-6 xl:gap-8">
             <h1 class="text-4xl italic font-semibold text-center sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl">
-                Experimental <br /> decentralized exchange <br /> on <a href="https://minaprotocol.com/" target="_blank" class="text-blue-300 underline">Mina</a>.
+                Experimental <br /> decentralized exchange <br /> on <a
+                    href="https://minaprotocol.com/"
+                    target="_blank"
+                    class="text-blue-300 underline">Mina Protocol</a
+                >
             </h1>
             <p class="text-sm text-center sm:text-lg md:text-xl lg:text-2xl xl:text-3xl text-slate-300">
-                Create and trade your favorite tokens on Mina <br /> with a seamless experience.
+                Create, manage and trade tokens on Mina <br /> with a seamless experience.
             </p>
+            <div class="flex justify-center gap-5 sm:gap-6 md:gap-7 lg:gap-8 xl:gap-10">
+                <a
+                    href="/trade"
+                    class="flex items-center justify-center w-24 font-semibold bg-blue-500 rounded-full md:w-36 lg:w-40 xl:w-48 sm:w-28 h-9 sm:h-10 sm:text-lg md:h-12 md:text-xl lg:text-2xl lg:h-14 xl:text-3xl xl:h-16 hover:bg-blue-400"
+                >
+                    Trade
+                </a>
+                <a
+                    href="/docs"
+                    class="flex items-center justify-center w-24 font-semibold bg-blue-500 rounded-full md:w-36 lg:w-40 xl:w-48 sm:w-28 h-9 sm:h-10 sm:text-lg md:h-12 md:text-xl lg:text-2xl lg:h-14 xl:text-3xl xl:h-16 hover:bg-blue-400"
+                >
+                    Docs
+                </a>
+            </div>
         </div>
     </div>
 </Layout>

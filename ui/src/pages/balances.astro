@@ -1,0 +1,13 @@
+---
+import MenuBalances from '../components/MenuBalances'
+import Layout from '../layouts/Layout.astro'
+---
+
+<Layout>
+    <div class="flex flex-col pb-12 ">
+        <div class="flex flex-col gap-3">
+            <h1 class="text-4xl font-semibold sm:text-5xl sml">Balances:</h1>
+            <MenuBalances client:idle />
+        </div>
+    </div>
+</Layout>
