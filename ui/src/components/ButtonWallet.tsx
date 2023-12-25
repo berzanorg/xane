@@ -1,24 +1,22 @@
 import { Show } from 'solid-js'
-import { state, setState } from '../lib/store'
+import { store } from '../lib/store'
 
-export default function ButtonConnect() {
-    console.log('hey')
-
+export default function ButtonWallet() {
     const connect = async () => {
         if (!window.mina) return alert('Auro Wallet is not installed.')
         const addresses = await window.mina.requestAccounts()
         if (addresses[0]) {
-            setState('address', addresses[0])
+            store.address = addresses[0]
         }
     }
 
     const disconnect = async () => {
-        setState('address', undefined)
+        store.address = undefined
     }
 
     return (
         <Show
-            when={state.address}
+            when={store.address}
             fallback={
                 <button
                     onClick={connect}

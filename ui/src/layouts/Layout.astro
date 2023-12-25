@@ -1,4 +1,5 @@
 ---
+import { ViewTransitions } from 'astro:transitions'
 import Footer from '../components/Footer.astro'
 import Header from '../components/Header.astro'
 ---
@@ -13,10 +14,11 @@ import Header from '../components/Header.astro'
             rel="stylesheet"
         />
         <title>Astro</title>
+        <ViewTransitions />
     </head>
     <body class="bg-slate-900 text-white font-['Afacad',sans-serif] flex flex-col min-h-screen">
         <Header />
-        <main class="flex flex-col px-4 sm:px-6 flex-1">
+        <main class="flex flex-col self-center flex-1 w-full max-w-6xl px-4 sm:px-6 h-52">
             <slot />
         </main>
         <Footer />

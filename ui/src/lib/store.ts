@@ -1,7 +1,18 @@
-import { createStore } from 'solid-js/store'
+import { createMutable } from 'solid-js/store'
 
 interface Store {
-    address?: string
+    address: string | undefined
+    minaBalance: bigint | undefined
+    tokenBalances: {
+        symbol: string
+        amount: bigint
+        id: bigint
+    }[] | undefined
 }
 
-export const [state, setState] = createStore<Store>({})
+export const store = createMutable<Store>({
+    address: undefined,
+    minaBalance: undefined,
+    tokenBalances: undefined,
+})
+
