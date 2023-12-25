@@ -3,7 +3,7 @@ import { ViewTransitions } from 'astro:transitions'
 import Footer from '../components/Footer.astro'
 import Header from '../components/Header.astro'
 
-const title = 'Xane'
+const { title } = Astro.props
 const description = 'A zero knowledge decentralized exchange on Mina protocol.'
 const keywords = ['mina', 'exchange', 'dex', 'zkapp', 'zk', 'xane']
 const twitter = '@BerzanOrg'
@@ -39,7 +39,7 @@ const site = 'https://xane.berzan.org'
         <meta name="twitter:url" content={site} />
         <meta name="twitter:description" content={description} />
         <meta name="twitter:image:src" content="https://xane.berzan.org/xane.webp" />
-        <title>Astro</title>
+        <title>{title}</title>
         <ViewTransitions />
         <style is:global>
             input[type='number']::-webkit-inner-spin-button,
