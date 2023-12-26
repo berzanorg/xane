@@ -1,7 +1,15 @@
 ---
+import MenuTrading from '../components/MenuTrading'
 import Layout from '../layouts/Layout.astro'
 ---
 
 <Layout title="Xane - Trading">
-    Trade Page
+    <div class="flex flex-col pb-12">
+        <div class="flex flex-col gap-3 sm:gap-4 items-center">
+            <h1 class="text-4xl font-semibold sm:text-5xl">Trading</h1>
+            <div class="max-w-md w-full">
+                <MenuTrading client:idle />
+            </div>
+        </div>
+    </div>
 </Layout>

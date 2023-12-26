@@ -1,7 +1,3 @@
-// import { createResource } from 'solid-js'
-// import { client } from '../lib/client'
-// import { store } from '../lib/store'
-
 import { For, Show, createSignal } from 'solid-js'
 import { store } from '../lib/store'
 import IconTransfer from '../icons/IconTransfer'
@@ -10,27 +6,15 @@ import DialogTokenCreation, { showTokenCreationDialog } from './DialogTokenCreat
 import DialogTransfer, { showTransferDialog } from './DialogTransfer'
 import DialogMint, { showMintDialog } from './DialogMint'
 
-// const getMinaBalance = async () => {
-//     if (!store.address) return
-//     return await client.getBalance({
-//         address: store.address,
-//     })
-// }
-
 export default function Balances() {
-    // const [balance] = createResource(store.address, getMinaBalance)
-
     return (
         <div class="flex flex-col gap-4">
             <For each={store.tokenBalances}>
                 {(tokenBalance) => (
-                    <div class="bg-slate-800 flex h-14 items-center px-4 rounded-xl justify-between">
-                        <p class="sm:text-lg">
-                            <span class="font-medium">
-                                {(tokenBalance.amount / 10n ** tokenBalance.decimals).toLocaleString()}
-                            </span>
-                            &nbsp;
-                            <span class="font-semibold">{tokenBalance.symbol}</span>
+                    <div class="bg-slate-800 flex h-14 items-center px-4 rounded-full justify-between">
+                        <p class="text-lg font-semibold">
+                            {(tokenBalance.amount / 10n ** tokenBalance.decimals).toLocaleString()}
+                            &nbsp;{tokenBalance.symbol}
                         </p>
                         <div class="flex gap-4">
                             <Show when={tokenBalance.owner === store.address}>
