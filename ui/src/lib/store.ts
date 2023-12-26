@@ -9,7 +9,7 @@ interface Store {
         decimals: bigint
         id: bigint
         owner: string
-    }[] | undefined
+    }[]
 }
 
 export const store = createMutable<Store>({
