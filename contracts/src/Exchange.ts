@@ -211,8 +211,8 @@ export class Exchange extends SmartContract {
                 ...price.toFields(),
                 ...baseCurrency.toFields(),
                 ...quoteCurrency.toFields(),
-                ...buyOrderWitness.toFields(),
                 ...sellOrdersRoot.toFields(),
+                ...buyOrderWitness.toFields(),
                 ...pairWitness.toFields(),
             ])
             .assertTrue(Errors.InvalidSignature)
@@ -339,8 +339,8 @@ export class Exchange extends SmartContract {
                 ...price.toFields(),
                 ...baseCurrency.toFields(),
                 ...quoteCurrency.toFields(),
-                ...buyOrderWitness.toFields(),
                 ...sellOrdersRoot.toFields(),
+                ...buyOrderWitness.toFields(),
                 ...pairWitness.toFields(),
             ])
             .assertTrue(Errors.InvalidSignature)
@@ -467,8 +467,8 @@ export class Exchange extends SmartContract {
                 ...price.toFields(),
                 ...baseCurrency.toFields(),
                 ...quoteCurrency.toFields(),
-                ...buyOrderWitness.toFields(),
                 ...sellOrdersRoot.toFields(),
+                ...buyOrderWitness.toFields(),
                 ...pairWitness.toFields(),
             ])
             .assertTrue(Errors.InvalidSignature)

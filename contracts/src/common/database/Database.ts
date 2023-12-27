@@ -149,4 +149,8 @@ export class Database {
 
         return pair._GetOrdersRoot(params)
     }
+
+    data() {
+        return this.#data
+    }
 }

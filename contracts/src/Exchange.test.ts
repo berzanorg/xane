@@ -236,8 +236,8 @@ describe('token vault test', () => {
             ...BUY_ORDER_PRICE.toFields(),
             ...btcTokenPubkey.toFields(),
             ...usdTokenPubkey.toFields(),
-            ...buyOrderWitness.toFields(),
             ...sellOrdersRoot.toFields(),
+            ...buyOrderWitness.toFields(),
             ...pairWitness.toFields(),
         ])
 
@@ -297,8 +297,8 @@ describe('token vault test', () => {
             ...BUY_ORDER_PRICE.toFields(),
             ...btcTokenPubkey.toFields(),
             ...usdTokenPubkey.toFields(),
-            ...buyOrderWitness.toFields(),
             ...sellOrdersRoot.toFields(),
+            ...buyOrderWitness.toFields(),
             ...pairWitness.toFields(),
         ])
 
