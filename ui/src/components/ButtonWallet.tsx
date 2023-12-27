@@ -1,21 +1,36 @@
 import { Show, createEffect, createSignal, onMount } from 'solid-js'
 import { store } from '../lib/store'
+import type { XaneWorker } from '../lib/worker'
+import { wrap } from 'comlink'
+import { setWorkerLoaded } from '../lib/isWorkerLoaded'
+import workerUrl from '../lib/worker.ts?url'
 
 export default function ButtonWallet() {
     const [isAuroFound, setAuroFound] = createSignal(false)
     const [isMouseOverButton, setMouseOverButton] = createSignal(false)
 
-    createEffect(() => {
-        console.log(isMouseOverButton())
-    })
-
     const showTooltip = () => !isAuroFound() && isMouseOverButton()
 
     onMount(async () => {
-        if (!window.mina) return
-        setAuroFound(true)
-        const accounts = await window.mina.getAccounts()
-        store.address = accounts[0]
+        setTimeout(async () => {
+            if (!window.mina) return
+            setAuroFound(true)
+            const accounts = await window.mina.getAccounts()
+            store.address = accounts[0]
+        }, 100)
+
+        window.xane = wrap<XaneWorker>(new Worker(new URL(workerUrl, import.meta.url), { type: 'module' }))
+        setWorkerLoaded(true)
+    })
+
+    createEffect(async () => {
+        if (!store.address || !window.xane) return
+
+        const bal = await window.xane.getBalance({
+            address: store.address,
+        })
+
+        console.log(bal)
     })
 
     const connect = async () => {
@@ -37,8 +52,8 @@ export default function ButtonWallet() {
                     <button
                         disabled={!isAuroFound()}
                         onClick={connect}
-                        onMouseEnter={() => setMouseOverButton(true)}
-                        onMouseLeave={() => setMouseOverButton(false)}
+                        onMouseEnter={() => !isAuroFound && setMouseOverButton(true)}
+                        onMouseLeave={() => !isAuroFound && setMouseOverButton(false)}
                         class="bg-blue-500 hover:bg-blue-400 duration-75 h-9 px-5 rounded-full font-semibold text-lg disabled:cursor-not-allowed disabled:hover:bg-blue-500"
                     >
                         Connect

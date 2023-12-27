@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js'
+import { For, Show } from 'solid-js'
 import { store } from '../lib/store'
 import IconTransfer from '../icons/IconTransfer'
 import IconMint from '../icons/IconMint'
