@@ -147,6 +147,7 @@ describe('token vault test', () => {
         usdTokenZkapp.circulatingSupply.getAndRequireEquals().assertEquals(USD_MINT_AMOUNT)
     })
 
+    // todo: make vault deployment possible without needing exchange's private key to sign
     it('can deploy BTC vault', async () => {
         const tx = await Mina.transaction(satoshiPubkey, () => {
             AccountUpdate.fundNewAccount(satoshiPubkey)
