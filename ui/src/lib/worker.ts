@@ -1,16 +1,16 @@
 import { expose } from 'comlink'
-import { Mina, PublicKey, Field, fetchAccount, PrivateKey, AccountUpdate, Encoding, UInt64 } from 'o1js'
-import { Exchange, Token, Vault } from 'xane'
+import type { Field as FieldType } from 'o1js'
+const { Mina, PublicKey, Field, fetchAccount, PrivateKey, AccountUpdate, Encoding, UInt64 } = await import('o1js')
+const { Exchange, Token, Vault } = await import('xane')
 
 Mina.setActiveInstance(Mina.Network('https://api.minascan.io/node/berkeley/v1/graphql'))
-
 
 const SAMPLE_EXCHANGE_PUBKEY = PublicKey.empty()
 const SAMPLE_SERVER_URL = 'http://localhost:3000'
 
 type VerificationKey = {
     data: string;
-    hash: Field;
+    hash: FieldType;
 }
 
 const verificationKeys: {
