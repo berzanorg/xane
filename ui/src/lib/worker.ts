@@ -1,6 +1,6 @@
 import { expose } from 'comlink'
 import { Mina, PublicKey, Field, fetchAccount, PrivateKey, AccountUpdate, Encoding, UInt64 } from 'o1js'
-import { Exchange, PairWitness, Token, Vault } from 'xane'
+import { Exchange, Token, Vault } from 'xane'
 
 Mina.setActiveInstance(Mina.Network('https://api.minascan.io/node/berkeley/v1/graphql'))
 
