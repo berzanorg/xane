@@ -4,6 +4,8 @@
 
 **Xane** is live at [xane.berzan.org](https://xane.berzan.org/).
 
+![Xane banner](/ui/public/xane.png)
+
 > **Note**: Currently, the user interface is not functioning because there is no <br> backend server running on the web and there are issues with Mina nodes. <br>
 > However you can visit it and see how it looks like.
 
