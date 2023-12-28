@@ -2,8 +2,7 @@ import { Show, createEffect, createSignal, onMount } from 'solid-js'
 import { store } from '../lib/store'
 import type { XaneWorker } from '../lib/worker'
 import { wrap } from 'comlink'
-import { setWorkerLoaded } from '../lib/isWorkerLoaded'
-import workerUrl from '../lib/worker.ts?url'
+import { isWorkerLoaded, setWorkerLoaded } from '../lib/isWorkerLoaded'
 
 export default function ButtonWallet() {
     const [isAuroFound, setAuroFound] = createSignal(false)
@@ -19,14 +18,14 @@ export default function ButtonWallet() {
             store.address = accounts[0]
         }, 100)
 
-        window.xane = wrap<XaneWorker>(new Worker(new URL(workerUrl, import.meta.url), { type: 'module' }))
+        window.xane = wrap<XaneWorker>(new Worker(new URL('../lib/worker.ts', import.meta.url), { type: 'module' }))
         setWorkerLoaded(true)
     })
 
     createEffect(async () => {
-        if (!store.address || !window.xane) return
+        if (!store.address || !isWorkerLoaded()) return
 
-        const bal = await window.xane.getBalance({
+        const bal = await window.xane!.getBalance({
             address: store.address,
         })
 
